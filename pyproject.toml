@@ -1,0 +1,13 @@
+[project]
+name = "poc-chat-chat"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "langchain>=0.3.27",
+    "langchain-openai>=0.3.28",
+    "pydantic>=2.11.7",
+    "redis>=6.2.0",
+    "structlog>=25.4.0",
+]
