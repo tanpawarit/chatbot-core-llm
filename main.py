@@ -1,8 +1,8 @@
 import uuid
 from datetime import datetime, timezone
 from src.models import Message, MessageRole
-from src.memory.manager import memory_manager
 from src.llm.processor import event_processor
+from src.memory.manager import memory_manager
 from src.utils.logging import setup_logging, get_logger
 
 # Setup logging
@@ -10,9 +10,13 @@ setup_logging()
 logger = get_logger(__name__)
 
 
-def create_conversation_id() -> str:
-    """Generate a unique conversation ID"""
-    return str(uuid.uuid4())
+def get_user_id() -> str:
+    """Get user ID from input"""
+    while True:
+        user_id = input("Enter your user ID: ").strip()
+        if user_id:
+            return user_id
+        print("Please enter a valid user ID.")
 
 
 def print_llm_context(title: str, messages: list, extra_info: str = ""):
@@ -28,16 +32,64 @@ def print_llm_context(title: str, messages: list, extra_info: str = ""):
     print("=" * 60)
 
 
+def process_user_input_simple(user_id: str, user_input: str) -> dict:
+    """
+    Simplified workflow replacing LangGraph complexity
+    Implements the same flow: A→B→C→D→E→F→G→H→I→J/K→M→N
+    """
+    logger.info("Starting simplified workflow", user_id=user_id)
+    
+    # A: Create user message
+    user_message = Message(
+        role=MessageRole.USER,
+        content=user_input,
+        timestamp=datetime.now(timezone.utc)
+    )
+    
+    # B→C→D→E→F→G: Memory processing (handled by memory_manager)
+    conversation = memory_manager.process_user_message(user_id, user_message)
+    
+    # H→I→J/K→M: Process through event processor (includes LM context)
+    event, assistant_response = event_processor.process_message(
+        user_id, user_message, conversation.messages
+    )
+    
+    # Check if important event was saved
+    is_important_event = event is not None and event.importance_score >= 0.7
+    
+    # N: Save assistant response to SM
+    assistant_message = Message(
+        role=MessageRole.ASSISTANT,
+        content=assistant_response,
+        timestamp=datetime.now(timezone.utc)
+    )
+    memory_manager.add_assistant_response(user_id, assistant_message)
+    
+    # Get final context
+    context = memory_manager.get_conversation_context(user_id)
+    
+    return {
+        "user_message": user_message,
+        "conversation": conversation,
+        "event": event,
+        "is_important_event": is_important_event,
+        "assistant_response": assistant_response,
+        "assistant_message": assistant_message,
+        "context": context
+    }
+
+
 def main():
     """
     Simple chat interface implementing your flow diagram with LLM context printing
     """
     print("🤖 Chatbot with Dual Memory System (Debug Mode)")
-    print("Type 'quit' to exit, 'new' for new conversation")
+    print("Type 'quit' to exit, 'new' for new user")
     print("-" * 50)
     
-    conversation_id = create_conversation_id()
-    logger.info("Starting new conversation", conversation_id=conversation_id)
+    user_id = get_user_id()
+    logger.info("Starting session", user_id=user_id)
+    print(f"Welcome {user_id}! 🎉")
     
     while True:
         try:
@@ -49,61 +101,40 @@ def main():
                 break
             
             if user_input.lower() == 'new':
-                conversation_id = create_conversation_id()
-                logger.info("Starting new conversation", conversation_id=conversation_id)
-                print(f"🆕 New conversation started")
+                user_id = get_user_id()
+                logger.info("Starting new user session", user_id=user_id)
+                print(f"🆕 New user session started for {user_id}")
                 continue
             
             if not user_input:
                 continue
             
-            # Create user message
-            user_message = Message(
-                role=MessageRole.USER,
-                content=user_input,
-                timestamp=datetime.now(timezone.utc)
-            )
+            # Process user input through simplified workflow (A→B→C...→G→H→I→J/K→M→N)
+            final_state = process_user_input_simple(user_id, user_input)
             
-            # Process user message through memory system (A→B→C...→G)
-            conversation = memory_manager.process_user_message(conversation_id, user_message)
-            
-            # Show context for event classification
+            # Show context for event classification (for debugging)
             event_classification_messages = [
                 Message(role=MessageRole.SYSTEM, content="Event classification system"),
-                user_message
+                final_state["user_message"]
             ]
             print_llm_context("Event Classification Context", 
                             event_classification_messages,
                             f"Classifying: '{user_input}'")
             
-            # Process event with LLM (H→I→J/K)
-            event = event_processor.create_event_from_message(user_message)
-            if event and event_processor.is_important_event(event):
-                memory_manager.save_important_event(conversation_id, event)
-                print(f"💾 Important event saved: {event.event_type} (score: {event.importance_score:.2f})")
+            # Show important event info if saved
+            if final_state["is_important_event"] and final_state["event"]:
+                print(f"💾 Important event saved: {final_state['event'].event_type} (score: {final_state['event'].importance_score:.2f})")
             
-            # Show context for chat response generation
+            # Show context for chat response generation (for debugging)
             print_llm_context("Chat Response Generation Context", 
-                            conversation.messages,
-                            f"Total messages: {len(conversation.messages)}")
-            
-            # Generate response (M)
-            response_text = event_processor.generate_chat_response(conversation.messages)
-            
-            # Create assistant message and save to SM (N)
-            assistant_message = Message(
-                role=MessageRole.ASSISTANT,
-                content=response_text,
-                timestamp=datetime.now(timezone.utc)
-            )
-            
-            memory_manager.add_assistant_response(conversation_id, assistant_message)
+                            final_state["conversation"].messages,
+                            f"Total messages: {len(final_state['conversation'].messages)}")
             
             # Display response
-            print(f"\n🤖 Bot: {response_text}")
+            print(f"\n🤖 Bot: {final_state['assistant_response']}")
             
             # Show conversation context summary
-            context = memory_manager.get_conversation_context(conversation_id)
+            context = final_state["context"]
             print(f"\n📊 Memory Summary: {context.get('current_messages', 0)} messages, {context.get('important_events', 0)} important events")
             
         except KeyboardInterrupt:

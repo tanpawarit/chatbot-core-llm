@@ -7,7 +7,13 @@ requires-python = ">=3.12"
 dependencies = [
     "langchain>=0.3.27",
     "langchain-openai>=0.3.28",
+    "langgraph>=0.6.2",
     "pydantic>=2.11.7",
     "redis>=6.2.0",
     "structlog>=25.4.0",
+]
+
+[dependency-groups]
+dev = [
+    "pyflakes>=3.4.0",
 ]

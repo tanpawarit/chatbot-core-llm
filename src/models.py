@@ -58,7 +58,7 @@ class Event(BaseModel):
 
 
 class Conversation(BaseModel):
-    conversation_id: str
+    user_id: str
     messages: List[Message] = Field(default_factory=list)
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
@@ -78,7 +78,7 @@ class Conversation(BaseModel):
 
 
 class LongTermMemory(BaseModel):
-    conversation_id: str
+    user_id: str
     events: List[Event] = Field(default_factory=list)
     summary: str = ""
     context: Dict[str, Any] = Field(default_factory=dict)
