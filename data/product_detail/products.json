@@ -1,0 +1,124 @@
+{
+  "products": [
+    {
+      "id": "P001",
+      "name": "Gaming PC AMD Ryzen 5 GTX 1660 Super",
+      "price": 35000,
+      "stock": 5
+    },
+    {
+      "id": "P002",
+      "name": "โน้ตบุ๊ก ASUS VivoBook 15 i5-1135G7",
+      "price": 18500,
+      "stock": 8
+    },
+    {
+      "id": "P003",
+      "name": "Gaming PC Intel i7 RTX 3060",
+      "price": 45000,
+      "stock": 3
+    },
+    {
+      "id": "P004",
+      "name": "Office PC Intel i3 Integrated Graphics",
+      "price": 12000,
+      "stock": 12
+    },
+    {
+      "id": "P005",
+      "name": "CPU Intel Core i5-12400F",
+      "price": 6500,
+      "stock": 15
+    },
+    {
+      "id": "P006",
+      "name": "CPU AMD Ryzen 7 5700X",
+      "price": 8900,
+      "stock": 10
+    },
+    {
+      "id": "P007",
+      "name": "VGA RTX 4060 Ti 16GB",
+      "price": 18500,
+      "stock": 7
+    },
+    {
+      "id": "P008",
+      "name": "VGA GTX 1660 Super 6GB",
+      "price": 7500,
+      "stock": 9
+    },
+    {
+      "id": "P009",
+      "name": "RAM DDR4 16GB (8x2) 3200MHz Corsair",
+      "price": 2800,
+      "stock": 20
+    },
+    {
+      "id": "P010",
+      "name": "RAM DDR5 32GB (16x2) 5600MHz G.Skill",
+      "price": 5500,
+      "stock": 6
+    },
+    {
+      "id": "P011",
+      "name": "SSD 1TB NVMe M.2 Samsung 980 PRO",
+      "price": 3200,
+      "stock": 18
+    },
+    {
+      "id": "P012",
+      "name": "HDD 2TB Western Digital Blue",
+      "price": 1800,
+      "stock": 14
+    },
+    {
+      "id": "P013",
+      "name": "คีย์บอร์ด Logitech G Pro X Mechanical",
+      "price": 4200,
+      "stock": 11
+    },
+    {
+      "id": "P014",
+      "name": "เมาส์ Razer DeathAdder V3",
+      "price": 2100,
+      "stock": 16
+    },
+    {
+      "id": "P015",
+      "name": "จอมอนิเตอร์ 24 นิ้ว AOC 144Hz Gaming",
+      "price": 6800,
+      "stock": 4
+    },
+    {
+      "id": "P016",
+      "name": "จอมอนิเตอร์ 27 นิ้ว LG UltraGear 165Hz",
+      "price": 9500,
+      "stock": 6
+    },
+    {
+      "id": "P017",
+      "name": "เคสคอม NZXT H510 Mid Tower",
+      "price": 2800,
+      "stock": 8
+    },
+    {
+      "id": "P018",
+      "name": "PSU 650W 80+ Gold Seasonic",
+      "price": 3200,
+      "stock": 13
+    },
+    {
+      "id": "P019",
+      "name": "คูลเลอร์ CPU Noctua NH-D15",
+      "price": 2900,
+      "stock": 7
+    },
+    {
+      "id": "P020",
+      "name": "ลำโพง Logitech Z313 2.1 Speaker",
+      "price": 1200,
+      "stock": 22
+    }
+  ]
+}
