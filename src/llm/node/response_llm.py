@@ -1,6 +1,8 @@
 """Simple response generation LLM node"""
 
-from typing import List, Optional
+import json
+import os
+from typing import List, Optional, Dict, Any
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 
@@ -9,6 +11,49 @@ from src.models import Message, MessageRole, LongTermMemory
 from src.utils.logging import get_logger
 
 logger = get_logger(__name__)
+
+
+def _load_product_data() -> Optional[Dict[str, Any]]:
+    """
+    Load product data from JSON file
+    
+    Returns:
+        Product data dictionary or None if file not found
+    """
+    try:
+        products_path = "data/product_detail/products.json"
+        if os.path.exists(products_path):
+            with open(products_path, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        else:
+            logger.warning("Product data file not found", path=products_path)
+            return None
+    except Exception as e:
+        logger.error("Failed to load product data", error=str(e))
+        return None
+
+
+def _format_product_details(product_data: Optional[Dict[str, Any]]) -> str:
+    """
+    Format product data for system prompt
+    
+    Args:
+        product_data: Product data dictionary
+        
+    Returns:
+        Formatted product details string
+    """
+    if not product_data or 'products' not in product_data:
+        return "ไม่มีข้อมูลสินค้าในขณะนี้"
+    
+    products = product_data['products']
+    formatted_products = []
+    
+    for product in products:
+        product_info = f"- {product['name']}: {product['price']:,} บาท (คลัง: {product['stock']} ชิ้น)"
+        formatted_products.append(product_info)
+    
+    return "\n".join(formatted_products)
 
 
 def generate_response(conversation_messages: List[Message], lm_context: Optional[LongTermMemory] = None) -> str:
@@ -77,35 +122,47 @@ def generate_response(conversation_messages: List[Message], lm_context: Optional
 
 def _build_system_prompt(lm_context: Optional[LongTermMemory] = None) -> str:
     """
-    Build system prompt with long-term memory context
+    Build system prompt with tagged format including product details and LM context
     
     Args:
         lm_context: Optional long-term memory context
         
     Returns:
-        System prompt string with context
+        System prompt string with structured tags
     """
-    base_prompt = """คุณเป็นผู้ช่วยที่เป็นมิตรและมีประโยชน์ สามารถตอบคำถามและช่วยเหลือผู้ใช้ได้หลากหลายเรื่อง
-
-                ให้ตอบเป็นภาษาไทยที่สุภาพและเป็นมิตร"""
+    # Load product data
+    product_data = _load_product_data()
+    product_details = _format_product_details(product_data)
     
-    if not lm_context or not lm_context.events:
-        return base_prompt
+    # Build instructions section
+    instructions = """คุณเป็นผู้ช่วยขายสินค้าคอมพิวเตอร์ที่เป็นมิตรและมีความรู้เฉพาะด้าน
+            สามารถให้คำแนะนำเกี่ยวกับสินค้าคอมพิวเตอร์ อุปกรณ์ฮาร์ดแวร์ และการประกอบเครื่อง
+            ตอบคำถามเกี่ยวกับราคา สเปค และความเหมาะสมของสินค้าต่างๆ
+            ให้ตอบเป็นภาษาไทยที่สุภาพ เป็นมิตร และเข้าใจง่าย"""
     
-    # Build context from important events
-    context_parts = [base_prompt]
-    context_parts.append("\n\n=== ข้อมูลประวัติสำคัญของผู้ใช้ ===")
+    # Start building the tagged prompt
+    prompt_parts = [f"<instructions>\n{instructions}\n</instructions>"]
     
-    important_events = lm_context.get_important_events(threshold=0.7)
+    # Add product details section
+    prompt_parts.append(f"\n<product_details>\nสินค้าที่มีจำหน่าย:\n{product_details}\n</product_details>")
     
-    for event in important_events:
-        context_parts.append(f"\n- {event.event_type}: {event.content}")
-        if event.classification.intent:
-            context_parts.append(f"  (ความต้องการ: {event.classification.intent})")
+    # Add long-term memory section if available
+    if lm_context and lm_context.events:
+        lm_content_parts = ["ข้อมูลประวัติสำคัญของผู้ใช้:"]
+        
+        important_events = lm_context.get_important_events(threshold=0.7)
+        
+        for event in important_events:
+            lm_content_parts.append(f"- {event.event_type}: {event.content}")
+            if event.classification.intent:
+                lm_content_parts.append(f"  (ความต้องการ: {event.classification.intent})")
+        
+        if lm_context.summary:
+            lm_content_parts.append(f"\nสรุปข้อมูลผู้ใช้: {lm_context.summary}")
+        
+        lm_content_parts.append("\nใช้ข้อมูลประวัติข้างต้นในการให้คำแนะนำที่เหมาะสม")
+        
+        lm_content = "\n".join(lm_content_parts)
+        prompt_parts.append(f"\n<long_term_memory>\n{lm_content}\n</long_term_memory>")
     
-    if lm_context.summary:
-        context_parts.append(f"\n\nสรุปข้อมูลผู้ใช้: {lm_context.summary}")
-    
-    context_parts.append("\n\nใช้ข้อมูลประวัติข้างต้นในการตอบคำถามอย่างเหมาะสม")
-    
-    return "".join(context_parts)
+    return "\n".join(prompt_parts)
