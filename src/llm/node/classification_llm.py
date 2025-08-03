@@ -92,12 +92,7 @@ def classify_event(user_message: str) -> Optional[EventClassification]:
         print("="*60)
         
         # Get LLM response
-        response = llm.invoke(messages)
-        
-        # Debug: Check what's in the response
-        print(f"🔍 Debug response attributes: {dir(response)}")
-        if hasattr(response, 'response_metadata'):
-            print(f"🔍 Response metadata: {response.response_metadata}")
+        response = llm.invoke(messages) 
         
         # Track token usage
         if hasattr(response, 'usage_metadata') and response.usage_metadata:
