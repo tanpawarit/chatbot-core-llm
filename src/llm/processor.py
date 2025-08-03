@@ -6,6 +6,7 @@ from src.llm.node.classification_llm import analyze_message_nlu, should_save_to_
 from src.llm.node.response_llm import generate_response
 from src.memory.long_term import long_term_memory
 from src.utils.logging import get_logger
+from src.utils.token_tracker import token_tracker
 
 logger = get_logger(__name__)
 
@@ -83,6 +84,10 @@ class NLUProcessor:
                         error=str(e))
             # Return fallback response
             return None, "ขอโทษครับ เกิดข้อผิดพลาดในการประมวลผล กรุณาลองใหม่อีกครั้งครับ"
+    
+    def print_session_summary(self):
+        """Print session token usage summary"""
+        token_tracker.print_session_summary()
     
 
 # Global instance

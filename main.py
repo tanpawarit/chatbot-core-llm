@@ -69,8 +69,8 @@ def main():
     """
     Simple chat interface implementing your flow diagram with LLM context printing
     """
-    print("🤖 Chatbot with Dual Memory System (Debug Mode)")
-    print("Type 'quit' to exit, 'new' for new user")
+    print("🤖 Chatbot with Dual Memory System (Refactored Version)")
+    print("Type 'quit' to exit, 'new' for new user, 'stats' for session stats")
     print("-" * 50)
     
     user_id = get_user_id()
@@ -90,6 +90,12 @@ def main():
                 user_id = get_user_id()
                 logger.info("Starting new user session", user_id=user_id)
                 print(f"🆕 New user session started for {user_id}")
+                continue
+            
+            if user_input.lower() == 'stats':
+                # Show session statistics
+                print("\n📊 Session Statistics:")
+                nlu_processor.print_session_summary()
                 continue
             
             if not user_input:

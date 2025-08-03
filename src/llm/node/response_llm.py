@@ -2,14 +2,14 @@
 
 import json
 import os
-from typing import List, Optional, Dict, Any
-from langchain_openai import ChatOpenAI
+from typing import List, Optional, Dict, Any 
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 
 from src.config import config_manager
 from src.models import Message, MessageRole, LongTermMemory
+from src.llm.factory import llm_factory
 from src.utils.logging import get_logger
-from src.utils.cost_calculator import format_cost_info
+from src.utils.token_tracker import token_tracker
 
 logger = get_logger(__name__)
 
@@ -78,19 +78,11 @@ def generate_response(conversation_messages: List[Message], lm_context: Optional
         Generated response string
     """
     try:
-        # Get configuration
+        # Get LLM instance from factory
+        llm = llm_factory.get_response_llm()
+        
+        # Get configuration for logging
         config = config_manager.get_openrouter_config()
-        openrouter_config = config_manager.get_openrouter_config()
-        
-        # Initialize LLM client
-        from langchain_core.utils import convert_to_secret_str
-        
-        llm = ChatOpenAI(
-            model=config.response.model,
-            api_key=convert_to_secret_str(openrouter_config.api_key),
-            base_url=openrouter_config.base_url,
-            temperature=config.response.temperature,
-        )
         
         # Build system prompt with LM context
         system_prompt = _build_system_prompt(lm_context)
@@ -111,8 +103,7 @@ def generate_response(conversation_messages: List[Message], lm_context: Optional
                 langchain_messages.append(SystemMessage(content=msg.content))
         
         logger.info("Generating chat response", 
-                   message_count=len(conversation_messages),
-                   model=config.response.model)
+                   message_count=len(conversation_messages))
         
         # Pretty print Response LLM Context
         print("\n" + "="*60)
@@ -126,30 +117,12 @@ def generate_response(conversation_messages: List[Message], lm_context: Optional
         # Get LLM response
         response = llm.invoke(langchain_messages)
         
-        # Track token usage (response is an AIMessage)
-        if isinstance(response, AIMessage) and hasattr(response, 'usage_metadata') and response.usage_metadata:
-            try:
-                print(f"💰 Response LLM Usage:")
-                # UsageMetadata is a TypedDict, use dictionary access
-                usage = response.usage_metadata
-                input_tokens = usage.get('input_tokens', 0)
-                output_tokens = usage.get('output_tokens', 0)
-                total_tokens = usage.get('total_tokens', input_tokens + output_tokens)
-                
-                if input_tokens or output_tokens:
-                    cost_info = format_cost_info(
-                        config.response.model,
-                        input_tokens,
-                        output_tokens,
-                        total_tokens
-                    )
-                    print(cost_info)
-                else:
-                    print("   No token usage data available")
-            except Exception as e:
-                print(f"   Error tracking usage: {e}")
+        # Track token usage
+        usage = token_tracker.track_response(response, config.response.model, "response")
+        if usage:
+            token_tracker.print_usage(usage, "🤖")
         else:
-            print("💰 Response LLM Usage: No usage metadata available")
+            print("🤖 Response LLM Usage: No usage metadata available")
         
         # Convert response content to string
         response_content = response.content if isinstance(response.content, str) else str(response.content)

@@ -12,8 +12,9 @@ from langchain_core.prompts import PromptTemplate
 from src.config import config_manager
 from src.models import NLUResult, NLUIntent, NLUEntity, NLULanguage, NLUSentiment
 from src.llm.node.utils import create_nlu_parser_from_config, extract_business_insights
+from src.llm.factory import llm_factory
 from src.utils.logging import get_logger
-from src.utils.cost_calculator import format_cost_info
+from src.utils.token_tracker import token_tracker
 
 logger = get_logger(__name__)
 
@@ -124,19 +125,11 @@ def analyze_message_nlu(user_message: str, conversation_context: Optional[list] 
     """
     try:
         # Get configuration
-        openrouter_config = config_manager.get_openrouter_config()
         main_config = config_manager.get_config()
         nlu_config = main_config.nlu
         
-        # Initialize LLM client
-        from langchain_core.utils import convert_to_secret_str
-        
-        llm = ChatOpenAI(
-            model=openrouter_config.classification.model,
-            api_key=convert_to_secret_str(openrouter_config.api_key),
-            base_url=openrouter_config.base_url,
-            temperature=openrouter_config.classification.temperature,
-        )
+        # Get LLM instance from factory
+        llm = llm_factory.get_classification_llm()
         
         # Prepare NLU prompt with configuration parameters
         prompt_template = PromptTemplate(
@@ -197,8 +190,7 @@ def analyze_message_nlu(user_message: str, conversation_context: Optional[list] 
             messages.append(HumanMessage(content=user_message))
         
         logger.info("Analyzing message with NLU", 
-                   message_length=len(user_message),
-                   model=openrouter_config.classification.model)
+                   message_length=len(user_message))
         
         # Pretty print NLU Context
         print("\n" + "="*60)
@@ -214,29 +206,13 @@ def analyze_message_nlu(user_message: str, conversation_context: Optional[list] 
         # Get LLM response
         response = llm.invoke(messages)
         
-        # Track token usage (response is an AIMessage)
-        if isinstance(response, AIMessage) and hasattr(response, 'usage_metadata') and response.usage_metadata:
-            try:
-                print(f"💰 NLU Analysis Usage:")
-                usage = response.usage_metadata
-                input_tokens = usage.get('input_tokens', 0)
-                output_tokens = usage.get('output_tokens', 0)
-                total_tokens = usage.get('total_tokens', input_tokens + output_tokens)
-                
-                if input_tokens or output_tokens:
-                    cost_info = format_cost_info(
-                        openrouter_config.classification.model,
-                        input_tokens,
-                        output_tokens,
-                        total_tokens
-                    )
-                    print(cost_info)
-                else:
-                    print("   No token usage data available")
-            except Exception as e:
-                print(f"   Error tracking usage: {e}")
+        # Track token usage
+        openrouter_config = config_manager.get_openrouter_config()
+        usage = token_tracker.track_response(response, openrouter_config.classification.model, "classification")
+        if usage:
+            token_tracker.print_usage(usage, "🧠")
         else:
-            print("💰 NLU Analysis Usage: No usage metadata available")
+            print("🧠 NLU Analysis Usage: No usage metadata available")
         
         # Parse NLU response using RobustNLUParser
         raw_response = response.content if isinstance(response.content, str) else str(response.content)

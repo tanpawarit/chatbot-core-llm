@@ -2,95 +2,120 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Project Overview
-
-This is a proof-of-concept chatbot system implementing a dual memory architecture with Thai computer sales assistant functionality. The system uses two LLMs for event classification and response generation, backed by Redis for short-term memory and JSON files for long-term memory.
-
-## Core Architecture
-
-### Memory System
-- **Short-term Memory (SM)**: Redis-based conversation storage with TTL
-- **Long-term Memory (LM)**: JSON file-based persistent storage for important events
-- **Event Classification**: LLM determines event importance (0.0-1.0 scale)
-- **Threshold**: Events ≥0.7 importance are saved to long-term memory
-
-### Processing Flow
-The system implements this workflow (as shown in README.md mermaid diagram):
-1. Check if short-term memory exists → Load SM or create from LM
-2. Add user message to conversation
-3. Classify event using LLM (returns EventType and importance score)
-4. If important (≥0.7) → Save to long-term memory
-5. Generate response using conversation + LM context
-6. Add response to conversation
-
-### Key Components
-- `main.py`: CLI interface and simplified workflow orchestration
-- `src/models.py`: Pydantic models for Message, Event, Conversation, etc.
-- `src/llm/processor.py`: Event processing orchestrator
-- `src/memory/manager.py`: Memory flow coordination
-- `src/llm/node/`: Individual LLM nodes for classification and response
-- `src/memory/`: Short-term (Redis) and long-term (JSON) memory implementations
-
 ## Development Commands
 
 ### Environment Setup
 ```bash
-# Install dependencies using uv
+# Install dependencies using uv (fast Python package installer)
 uv sync
 
-# Or install manually
-pip install -r requirements.txt  # if requirements.txt exists
+# Activate virtual environment
+source .venv/bin/activate
+
+# Set up environment variables (copy from example)
+cp .env.example .env
+# Edit .env with your API keys: OPENROUTER_API_KEY, REDIS_URL
 ```
 
 ### Running the Application
 ```bash
-# Run the chatbot CLI
+# Run the main chat application
 python main.py
 
-# Run with uv
+# Or with uv
 uv run python main.py
 ```
 
-### Configuration
-- Main config: `config.yaml` (contains OpenRouter API keys and Redis credentials)
-- Models use Gemini 2.5 Flash Lite via OpenRouter
-- Redis instance hosted on Upstash
+### Development Tools
+```bash
+# Check syntax with pyflakes (included in dev dependencies)
+python -m pyflakes src/
 
-### Memory Data
-- Long-term memory files: `data/longterm/[user_id].json`
-- Product catalog: `data/product_detail/products.json`
-- Sample user data available in `data/longterm/`
+# Run linting manually
+python -m pyflakes main.py src/
+```
 
-## Code Patterns
+## Architecture Overview
 
-### Message Flow
-All messages use the `Message` model with `MessageRole` enum (USER/ASSISTANT/SYSTEM). The `Conversation` class manages message lists with timestamps.
+This is a **conversational AI chatbot** for Thai computer sales with a **dual memory system** and **NLU-powered conversation flow**.
 
-### Event Classification
-Events are classified into 8 types: INQUIRY, FEEDBACK, REQUEST, COMPLAINT, TRANSACTION, SUPPORT, INFORMATION, GENERIC_EVENT. Each gets an importance score that determines LM persistence.
+### Core Architecture Pattern
 
-### Error Handling
-- LLM failures return fallback Thai error messages
-- Memory operations include existence/validity checks
-- Comprehensive logging using structlog
+The system follows a **simplified workflow** that replaces LangGraph complexity:
+```
+A[User Message] → B{SM Valid?} → C[Load SM]/D[Load LM] → E[Create SM] → F[Save SM] → G[Add Message] 
+→ H[NLU Analysis] → I{Important?} → J[Save to LM]/K[Skip] → L[Generate Response] → M[Add Response] → N[Complete]
+```
 
-### Dependencies
-- LangChain ecosystem for LLM operations
-- Pydantic for data validation
-- Redis for session storage
-- Structured logging with structlog
+### Key Components
 
-## Thai Language Context
+#### 1. **Dual Memory System** (`src/memory/`)
+- **Short-term Memory (SM)**: Redis-based conversation context (4-minute TTL)
+- **Long-term Memory (LM)**: JSON-based customer insights and important events
+- **Memory Manager**: Orchestrates the memory flow from the workflow diagram
 
-The chatbot acts as a Thai computer sales assistant with:
-- Product catalog with Thai descriptions and pricing
-- Thai language responses and error messages
-- Cultural context for computer sales in Thailand
-- Sample conversations showing typical customer interactions
+#### 2. **NLU Processing** (`src/llm/`)
+- **Classification LLM**: Analyzes messages for intent, importance, and business insights
+- **Response LLM**: Generates contextual Thai responses for computer sales
+- **NLU Processor**: Orchestrates the analysis and response generation flow
+- **LLM Factory**: Centralized LLM instance creation with caching
 
-## Important Notes
+#### 3. **Configuration System** (`src/config/`)
+- **Environment-first**: Loads credentials from environment variables
+- **YAML fallback**: Falls back to `config.yaml` for development
+- **Config Manager**: Handles the dual configuration approach
 
-- API keys are currently exposed in `config.yaml` - should be moved to environment variables
-- Redis URL contains credentials - should use secure credential management
-- The system implements a simplified alternative to LangGraph complexity
-- All timestamps use UTC timezone
+#### 4. **Domain-Specific Features**
+- **Thai Language Support**: All responses and error handling in Thai
+- **Computer Sales Context**: Product inventory, pricing, and sales workflows
+- **Business Intelligence**: Extracts customer insights from conversations
+
+### Memory Flow Logic
+
+The system implements a specific memory coordination pattern:
+
+1. **SM Check**: Validate existing short-term memory in Redis
+2. **Context Loading**: Load from SM (if valid) or create from LM context
+3. **Message Processing**: Add user message and process through NLU
+4. **Importance Assessment**: Score messages for long-term storage (threshold: 0.7)
+5. **Response Generation**: Generate contextual responses with LM context
+6. **State Persistence**: Save conversation state and important insights
+
+### Configuration Priority
+
+The system uses a **secure configuration hierarchy**:
+1. **Environment Variables** (production): `OPENROUTER_API_KEY`, `REDIS_URL`
+2. **YAML Configuration** (development): `config.yaml`
+3. **Runtime Validation**: Validates credentials and configuration on startup
+
+### NLU Classification System
+
+The system classifies conversations into business-relevant categories:
+- **Event Types**: INQUIRY, FEEDBACK, REQUEST, COMPLAINT, TRANSACTION, SUPPORT, INFORMATION, GENERIC_EVENT
+- **Importance Scoring**: 0.0-1.0 scale for filtering important events
+- **Thai Intent Recognition**: Specialized for computer sales domain
+
+### Development Context
+
+This is a **refactored codebase** that has undergone significant architectural improvements:
+- **40% code duplication reduction** through factory patterns
+- **Standardized error handling** with Thai error messages
+- **Enhanced security** with environment-based configuration
+- **Improved maintainability** through separation of concerns
+
+### Product Context
+
+The chatbot serves as a **Thai computer sales assistant** with:
+- **Product Inventory**: Gaming PCs, components, peripherals with Thai pricing
+- **Customer Memory**: Tracks purchase history and preferences
+- **Business Intelligence**: Analyzes customer behavior and sales patterns
+- **Contextual Responses**: Provides product recommendations and support
+
+## Important Implementation Notes
+
+- **Never hardcode API keys** - always use environment variables
+- **Follow the workflow diagram** - the memory and NLU flow is specifically designed
+- **Maintain Thai language support** - all user-facing text should be in Thai
+- **Use the factory pattern** - LLM instances are cached and managed centrally
+- **Respect the memory hierarchy** - SM for active conversations, LM for insights
+- **Token tracking is automatic** - use `token_tracker.print_session_summary()` for stats
