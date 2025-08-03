@@ -190,7 +190,10 @@ def _build_system_prompt(lm_context: Optional[LongTermMemory] = None) -> str:
         
         important_analyses = lm_context.get_important_analyses(threshold=0.7)
         
-        for analysis in important_analyses:
+        # Limit to most recent 5 analyses
+        recent_important_analyses = important_analyses[-5:] if len(important_analyses) > 5 else important_analyses
+        
+        for analysis in recent_important_analyses:
             lm_content_parts.append(f"- User said: {analysis.content}")
             if analysis.primary_intent:
                 lm_content_parts.append(f"  (Intent: {analysis.primary_intent})")

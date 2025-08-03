@@ -47,8 +47,8 @@ class RedisClient:
     def get_json(self, key: str) -> Optional[Any]:
         try:
             data = self.client.get(key)
-            if data:
-                return json.loads(data)
+            if data is not None:
+                return json.loads(str(data))
             return None
         except Exception as e:
             logger.error("Failed to get JSON data", key=key, error=str(e))

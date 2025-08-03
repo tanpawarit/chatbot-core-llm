@@ -186,7 +186,7 @@ class LongTermMemory(BaseModel):
                     language_counts[lang] = language_counts.get(lang, 0) + 1
             
             if language_counts:
-                preferences["preferred_language"] = max(language_counts, key=language_counts.get)
+                preferences["preferred_language"] = max(language_counts.keys(), key=lambda x: language_counts[x])
             
             # Common intents
             intent_counts = {}

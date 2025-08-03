@@ -6,7 +6,7 @@ Replaces the old event classification system with comprehensive NLU analysis.
 import json
 from typing import Optional, Dict, Any
 from langchain_openai import ChatOpenAI
-from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
+from langchain_core.messages import HumanMessage, SystemMessage, AIMessage, BaseMessage
 from langchain_core.prompts import PromptTemplate
 
 from src.config import config_manager
@@ -108,7 +108,7 @@ Output:
 """
 
 
-def analyze_message_nlu(user_message: str, conversation_context: list = None) -> Optional[NLUResult]:
+def analyze_message_nlu(user_message: str, conversation_context: Optional[list] = None) -> Optional[NLUResult]:
     """
     Analyze user message using NLU (Natural Language Understanding).
     
@@ -166,7 +166,7 @@ def analyze_message_nlu(user_message: str, conversation_context: list = None) ->
         )
         
         # Prepare messages with context
-        messages = [SystemMessage(content=formatted_prompt)]
+        messages: list[BaseMessage] = [SystemMessage(content=formatted_prompt)]
         
         # Add conversation context if provided (limit to last 4-5 messages)
         if conversation_context:
@@ -187,10 +187,13 @@ def analyze_message_nlu(user_message: str, conversation_context: list = None) ->
                 context_content += "</conversation_context>\n\n"
                 context_content += f"<current_message_to_analyze>\n{user_message}\n</current_message_to_analyze>"
                 
+                # Convert to HumanMessage for context
                 messages.append(HumanMessage(content=context_content))
             else:
+                # Convert to HumanMessage for user message
                 messages.append(HumanMessage(content=user_message))
         else:
+            # Convert to HumanMessage for user message
             messages.append(HumanMessage(content=user_message))
         
         logger.info("Analyzing message with NLU", 
@@ -203,7 +206,8 @@ def analyze_message_nlu(user_message: str, conversation_context: list = None) ->
         print("="*60)
         for i, msg in enumerate(messages, 1):
             role = type(msg).__name__.replace("Message", "").upper()
-            content = msg.content[:200] + "..." if len(msg.content) > 200 else msg.content
+            content_str = str(msg.content)
+            content = content_str[:200] + "..." if len(content_str) > 200 else content_str
             print(f"{i}. [{role}] {content}")
         print("="*60)
         
@@ -308,8 +312,8 @@ def parse_nlu_response_simple(raw_response: str, original_message: str) -> Optio
                 cleaned_content = cleaned_content[:-3]
             cleaned_content = cleaned_content.strip()
         
-        # Parse as JSON
-        json_data = json.loads(cleaned_content)
+        # Parse as JSON (validate format but use basic fallback conversion)
+        json.loads(cleaned_content)  # Validate JSON format
         
         # Convert to NLUResult (basic conversion)
         nlu_result = NLUResult(
@@ -400,7 +404,7 @@ def convert_parsed_to_nlu_result(parsed_result: Dict[str, Any], original_message
         )
 
 
-def should_save_to_longterm(nlu_result: NLUResult, threshold: float = None) -> bool:
+def should_save_to_longterm(nlu_result: NLUResult, threshold: Optional[float] = None) -> bool:
     """
     Determine if NLU analysis should be saved to long-term memory.
     

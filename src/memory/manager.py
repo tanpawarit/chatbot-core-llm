@@ -72,7 +72,7 @@ class MemoryManager:
         
         return success
     
-    def save_important_nlu_analysis(self, user_id: str, nlu_result: NLUResult, threshold: float = None) -> bool:
+    def save_important_nlu_analysis(self, user_id: str, nlu_result: NLUResult, threshold: Optional[float] = None) -> bool:
         """
         Save important NLU analysis to long-term memory (LM)
         Part of flow: I{Important Analysis?} → J[Save Analysis to LM]
