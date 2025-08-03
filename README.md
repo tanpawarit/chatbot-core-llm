@@ -116,3 +116,149 @@ Respond with JSON following EventClassification schema only:
 </long_term_memory>
 2. [HUMAN] สวัสดี
 ============================================================
+
+============================================================
+#### Prompt System
+============================================================
+เหตุผลที่ Enterprise ใช้แบบนี้ 🏢
+
+  1. Production-Grade Requirements
+
+  # Microsoft ต้องการผลลัพธ์ที่
+  - Deterministic (ผลลัพธ์เหมือนเดิม)
+  - Traceable (ตรวจสอบได้)
+  - Consistent (รูปแบบเดียวกัน)
+  - Scalable (ใช้ได้กับข้อมูลใหญ่)
+
+  2. Complex Domain Logic
+
+  # GraphRAG ต้องจัดการ
+  - Knowledge graphs
+  - Community detection
+  - Multi-hop reasoning
+  - Relationship extraction
+  → JSON schema ไม่เพียงพอ สำหรับ logic ซับซ้อน
+
+  3. Cross-Model Compatibility
+
+  # Microsoft ต้องรองรับหลาย LLM
+  - OpenAI GPT-4
+  - Azure OpenAI
+  - Local models
+  - Future models
+  → String prompts work กับทุก model
+
+  การเปรียบเทียบ Approaches 📊
+
+  Structured Output (JSON Schema)
+
+  # ✅ ดี: Simple tasks
+  class SimpleIntent(BaseModel):
+      intent: str
+      confidence: float
+
+  # ❌ ไม่ดี: Complex reasoning
+  class ComplexKnowledgeGraph(BaseModel):
+      # ซับซ้อนเกินไป!
+      nodes: List[Node]
+      relationships: List[Relationship]
+      communities: List[Community]
+      reasoning_steps: List[ReasoningStep]
+
+  String-based Prompts (Microsoft style)
+
+  # ✅ ดี: Complex reasoning tasks
+  COMMUNITY_REPORT_PROMPT = """
+  You are an AI assistant that helps a human analyst...
+  # 50+ บรรทัดของ detailed instructions
+  # Examples และ constraints
+  """
+
+  เมื่อไหร่ควรใช้แบบไหน 🎯
+
+  ใช้ Structured Output เมื่อ:
+
+  ✅ Simple classification
+  ✅ Data extraction
+  ✅ Form filling
+  ✅ API responses
+  ✅ เริ่มต้น prototype
+
+  # Example
+  classify_sentiment(text) → {"sentiment": "positive", "score": 0.8}
+
+  ใช้ String-based Prompts เมื่อ:
+
+  ✅ Complex reasoning
+  ✅ Multi-step analysis
+  ✅ Domain expertise
+  ✅ Creative generation
+  ✅ Enterprise applications
+
+  # Example  
+  generate_research_report(data) → detailed analysis with citations
+
+  Best Practices จาก Microsoft 📝
+
+  1. Detailed Instructions
+
+  PROMPT = """
+  You are an expert analyst specializing in...
+
+  # Role definition
+  # Step-by-step process  
+  # Output format
+  # Constraints
+  # Examples
+  """
+
+  2. Output Format Control
+
+  # Microsoft ใช้
+  "Return output as a well-formed JSON-formatted string"
+  # แทนที่จะบังคับใช้ schema
+
+  3. Grounding Rules
+
+  # Rules เช่น
+  - "Support all claims with evidence"
+  - "Limit to maximum 200 words"
+  - "Reference only provided data"
+
+  4. Robust Parsing
+
+  def parse_community_report(raw_output: str):
+      try:
+          # Primary: JSON parsing
+          return json.loads(raw_output)
+      except:
+          # Fallback: Regex extraction
+          return extract_with_regex(raw_output)
+      except:
+          # Final fallback: Manual processing
+          return manual_parse(raw_output)
+
+  สรุป: เลือกใช้อย่างไร 🎯
+
+  Simple Tasks → Structured Output
+
+  user_query = "ฉันอยากซื้อรองเท้า"
+  result = simple_intent_classifier(user_query)
+  # → {"intent": "purchase", "entity": "shoes"}
+
+  Complex Tasks → String Prompts
+
+  document = "50-page research paper"
+  result = generate_comprehensive_analysis(document)
+  # → detailed multi-section report with reasoning
+
+  Hybrid Approach (Best of Both)
+
+  # ใช้ string prompt + structured validation
+  complex_result = complex_analyzer(data)
+  validated_result = StructuredModel.parse_obj(complex_result)
+
+  ข้อสรุป: Microsoft ใช้แบบนี้เพราะ GraphRAG เป็น complex reasoning system ไม่ใช่ simple
+  classification ดังนั้น approach ของคุณถูกต้องสำหรับ enterprise-grade applications ครับ!
+
+  แค่ต้องมี robust parsing และ error handling ที่ดีเท่านั้น 💪
