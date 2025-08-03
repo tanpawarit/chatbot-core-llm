@@ -106,7 +106,7 @@ class MemoryManager:
         conversation = self.sm.load(user_id)
         if conversation:
             context['current_messages'] = len(conversation.messages)
-            context['recent_messages'] = [msg.model_dump() for msg in conversation.get_recent_messages(5)]
+            context['recent_messages'] = [msg.model_dump() for msg in conversation.get_recent_messages(20)]
         
         # Get historical context from LM
         lm = self.lm.load(user_id)

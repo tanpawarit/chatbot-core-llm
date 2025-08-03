@@ -9,6 +9,7 @@ from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 from src.config import config_manager
 from src.models import Message, MessageRole, LongTermMemory
 from src.utils.logging import get_logger
+from src.utils.cost_calculator import format_cost_info
 
 logger = get_logger(__name__)
 
@@ -115,6 +116,41 @@ def generate_response(conversation_messages: List[Message], lm_context: Optional
         
         # Get LLM response
         response = llm.invoke(langchain_messages)
+        
+        # Track token usage
+        if hasattr(response, 'usage_metadata') and response.usage_metadata:
+            try:
+                print(f"💰 Response LLM Usage:")
+                # Handle both object and dict formats
+                usage = response.usage_metadata
+                if hasattr(usage, 'input_tokens'):
+                    # Object format
+                    input_tokens = usage.input_tokens
+                    output_tokens = usage.output_tokens
+                    total_tokens = usage.total_tokens
+                elif isinstance(usage, dict):
+                    # Dict format
+                    input_tokens = usage.get('input_tokens', 0)
+                    output_tokens = usage.get('output_tokens', 0)
+                    total_tokens = usage.get('total_tokens', input_tokens + output_tokens)
+                else:
+                    print("   Usage metadata format not supported")
+                    input_tokens = output_tokens = total_tokens = 0
+                
+                if input_tokens or output_tokens:
+                    cost_info = format_cost_info(
+                        config.response.model,
+                        input_tokens,
+                        output_tokens,
+                        total_tokens
+                    )
+                    print(cost_info)
+                else:
+                    print("   No token usage data available")
+            except Exception as e:
+                print(f"   Error tracking usage: {e}")
+        else:
+            print("💰 Response LLM Usage: No usage metadata available")
         
         # Convert response content to string
         response_content = response.content if isinstance(response.content, str) else str(response.content)
