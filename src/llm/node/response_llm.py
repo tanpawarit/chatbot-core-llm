@@ -45,7 +45,7 @@ def _format_product_details(product_data: Optional[Dict[str, Any]]) -> str:
         Formatted product details string
     """
     if not product_data or 'products' not in product_data:
-        return "ไม่มีข้อมูลสินค้าในขณะนี้"
+        return "No product data available at this time"
     
     products = product_data['products']
     formatted_products = []
@@ -180,32 +180,32 @@ def _build_system_prompt(lm_context: Optional[LongTermMemory] = None) -> str:
     product_details = _format_product_details(product_data)
     
     # Build instructions section
-    instructions = """คุณเป็นผู้ช่วยขายสินค้าคอมพิวเตอร์ที่เป็นมิตรและมีความรู้เฉพาะด้าน
-            สามารถให้คำแนะนำเกี่ยวกับสินค้าคอมพิวเตอร์ อุปกรณ์ฮาร์ดแวร์ และการประกอบเครื่อง
-            ตอบคำถามเกี่ยวกับราคา สเปค และความเหมาะสมของสินค้าต่างๆ
-            ให้ตอบเป็นภาษาไทยที่สุภาพ เป็นมิตร และเข้าใจง่าย"""
+    instructions = """You are a friendly and knowledgeable computer sales assistant.
+            You can provide advice about computer products, hardware components, and system assembly.
+            Answer questions about pricing, specifications, and product suitability.
+            Respond in polite, friendly, and easy-to-understand English."""
     
     # Start building the tagged prompt
     prompt_parts = [f"<instructions>\n{instructions}\n</instructions>"]
     
     # Add product details section
-    prompt_parts.append(f"\n<product_details>\nสินค้าที่มีจำหน่าย:\n{product_details}\n</product_details>")
+    prompt_parts.append(f"\n<product_details>\nAvailable products:\n{product_details}\n</product_details>")
     
     # Add long-term memory section if available
     if lm_context and lm_context.events:
-        lm_content_parts = ["ข้อมูลประวัติสำคัญของผู้ใช้:"]
+        lm_content_parts = ["Important user history:"]
         
         important_events = lm_context.get_important_events(threshold=0.7)
         
         for event in important_events:
             lm_content_parts.append(f"- {event.event_type}: {event.content}")
             if event.classification.intent:
-                lm_content_parts.append(f"  (ความต้องการ: {event.classification.intent})")
+                lm_content_parts.append(f"  (Intent: {event.classification.intent})")
         
         if lm_context.summary:
-            lm_content_parts.append(f"\nสรุปข้อมูลผู้ใช้: {lm_context.summary}")
+            lm_content_parts.append(f"\nUser summary: {lm_context.summary}")
         
-        lm_content_parts.append("\nใช้ข้อมูลประวัติข้างต้นในการให้คำแนะนำที่เหมาะสม")
+        lm_content_parts.append("\nUse the above history to provide appropriate recommendations")
         
         lm_content = "\n".join(lm_content_parts)
         prompt_parts.append(f"\n<long_term_memory>\n{lm_content}\n</long_term_memory>")
