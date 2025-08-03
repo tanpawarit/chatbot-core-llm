@@ -18,19 +18,6 @@ def get_user_id() -> str:
         print("Please enter a valid user ID.")
 
 
-def print_llm_context(title: str, messages: list, extra_info: str = ""):
-    """Print the context being sent to LLM"""
-    print(f"\n🧠 {title}")
-    print("=" * 60)
-    for i, msg in enumerate(messages, 1):
-        role_emoji = {"user": "👤", "assistant": "🤖", "system": "⚙️"}.get(msg.role, "❓")
-        content_preview = msg.content[:100] + "..." if len(msg.content) > 100 else msg.content
-        print(f"{i}. {role_emoji} {msg.role.upper()}: {content_preview}")
-    if extra_info:
-        print(f"ℹ️  {extra_info}")
-    print("=" * 60)
-
-
 def process_user_input_simple(user_id: str, user_input: str) -> dict:
     """
     Simplified workflow replacing LangGraph complexity
@@ -52,7 +39,7 @@ def process_user_input_simple(user_id: str, user_input: str) -> dict:
     event, assistant_response = event_processor.process_message(
         user_id, user_message, conversation.messages
     )
-    
+     
     # Check if important event was saved
     is_important_event = event is not None and event.importance_score >= 0.7
     
@@ -111,31 +98,9 @@ def main():
             # Process user input through simplified workflow (A→B→C...→G→H→I→J/K→M→N)
             final_state = process_user_input_simple(user_id, user_input)
             
-            # Show context for event classification (for debugging)
-            event_classification_messages = [
-                Message(role=MessageRole.SYSTEM, content="Event classification system"),
-                final_state["user_message"]
-            ]
-            print_llm_context("Event Classification Context", 
-                            event_classification_messages,
-                            f"Classifying: '{user_input}'")
-            
-            # Show important event info if saved
-            if final_state["is_important_event"] and final_state["event"]:
-                print(f"💾 Important event saved: {final_state['event'].event_type} (score: {final_state['event'].importance_score:.2f})")
-            
-            # Show context for chat response generation (for debugging)
-            print_llm_context("Chat Response Generation Context", 
-                            final_state["conversation"].messages,
-                            f"Total messages: {len(final_state['conversation'].messages)}")
-            
-            # Display response
-            print(f"\n🤖 Bot: {final_state['assistant_response']}")
-            
-            # Show conversation context summary
-            context = final_state["context"]
-            print(f"\n📊 Memory Summary: {context.get('current_messages', 0)} messages, {context.get('important_events', 0)} important events")
-            
+            # # Display response
+            print(f"\n🤖 Bot: {final_state['assistant_response']}") 
+
         except KeyboardInterrupt:
             print("\n👋 Goodbye!")
             break

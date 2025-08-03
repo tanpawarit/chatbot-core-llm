@@ -81,6 +81,15 @@ def classify_event(user_message: str) -> Optional[EventClassification]:
                    message_length=len(user_message),
                    model=config.classification.model)
         
+        # Pretty print Classification LLM Context
+        print("\n" + "="*60)
+        print("🤖 Classification LLM Context")
+        print("="*60)
+        for i, msg in enumerate(messages, 1):
+            role = type(msg).__name__.replace("Message", "").upper()
+            print(f"{i}. [{role}] {msg.content}")
+        print("="*60)
+        
         # Get LLM response
         response = llm.invoke(messages)
         

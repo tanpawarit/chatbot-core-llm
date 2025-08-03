@@ -104,6 +104,15 @@ def generate_response(conversation_messages: List[Message], lm_context: Optional
                    message_count=len(conversation_messages),
                    model=config.response.model)
         
+        # Pretty print Response LLM Context
+        print("\n" + "="*60)
+        print("🤖 Response LLM Context")
+        print("="*60)
+        for i, msg in enumerate(langchain_messages, 1):
+            role = type(msg).__name__.replace("Message", "").upper()
+            print(f"{i}. [{role}] {msg.content}")
+        print("="*60)
+        
         # Get LLM response
         response = llm.invoke(langchain_messages)
         
