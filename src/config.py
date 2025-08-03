@@ -1,7 +1,7 @@
 import yaml
 from pathlib import Path
 from typing import Optional
-from src.models import Config, OpenRouterConfig, MemoryConfig, LLMModelConfig
+from src.models import Config, OpenRouterConfig, MemoryConfig, LLMModelConfig, NLUConfig
 
 
 class ConfigManager:
@@ -29,10 +29,12 @@ class ConfigManager:
             )
             
             memory_config = MemoryConfig(**config_data['memory'])
+            nlu_config = NLUConfig(**config_data['nlu'])
             
             self._config = Config(
                 openrouter=openrouter_config,
-                memory=memory_config
+                memory=memory_config,
+                nlu=nlu_config
             )
         
         return self._config
@@ -42,6 +44,12 @@ class ConfigManager:
     
     def get_memory_config(self) -> MemoryConfig:
         return self.load_config().memory
+    
+    def get_nlu_config(self) -> NLUConfig:
+        return self.load_config().nlu
+    
+    def get_config(self) -> Config:
+        return self.load_config()
 
 
 # Global config instance

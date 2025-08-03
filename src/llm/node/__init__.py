@@ -1,6 +1,5 @@
-"""Simple LLM nodes for classification and response generation"""
+"""Simple LLM nodes for response generation"""
 
-from src.llm.node.classification_llm import classify_event
 from src.llm.node.response_llm import generate_response
 
-__all__ = ["classify_event", "generate_response"]
+__all__ = ["generate_response"]

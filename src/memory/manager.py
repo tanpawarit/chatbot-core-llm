@@ -1,5 +1,5 @@
 from typing import Optional, Dict, Any
-from src.models import Conversation, Message, Event
+from src.models import Conversation, Message, NLUResult
 from src.memory.short_term import short_term_memory
 from src.memory.long_term import long_term_memory
 from src.utils.logging import get_logger
@@ -72,27 +72,34 @@ class MemoryManager:
         
         return success
     
-    def save_important_event(self, user_id: str, event: Event) -> bool:
+    def save_important_nlu_analysis(self, user_id: str, nlu_result: NLUResult, threshold: float = None) -> bool:
         """
-        Save important events to long-term memory (LM)
-        Part of flow: I{Important Event?} → J[Save Event to LM]
+        Save important NLU analysis to long-term memory (LM)
+        Part of flow: I{Important Analysis?} → J[Save Analysis to LM]
         """
-        if event.importance_score >= 0.7:  # Important event threshold
-            success = self.lm.add_event(user_id, event)
+        # Use config threshold if not provided
+        if threshold is None:
+            from src.config import config_manager
+            threshold = config_manager.get_nlu_config().importance_threshold
+        
+        if nlu_result.importance_score >= threshold:
+            success = self.lm.add_nlu_analysis(user_id, nlu_result)
             
             if success:
-                logger.info("Important event saved to LM", 
+                logger.info("Important NLU analysis saved to LM", 
                            user_id=user_id,
-                           event_type=event.event_type,
-                           importance_score=event.importance_score)
+                           primary_intent=nlu_result.primary_intent,
+                           importance_score=nlu_result.importance_score)
             
             return success
         else:
             # K: Skip LM Save (not important enough)
-            logger.debug("Event not important enough for LM", 
+            logger.debug("NLU analysis not important enough for LM", 
                         user_id=user_id,
-                        importance_score=event.importance_score)
+                        importance_score=nlu_result.importance_score,
+                        threshold=threshold)
             return True
+    
     
     def get_conversation(self, user_id: str) -> Optional[Conversation]:
         """Get current conversation from SM"""
@@ -111,9 +118,10 @@ class MemoryManager:
         # Get historical context from LM
         lm = self.lm.load(user_id)
         if lm:
-            context['important_events'] = len(lm.get_important_events())
-            context['total_events'] = len(lm.events)
+            context['important_analyses'] = len(lm.get_important_analyses())
+            context['total_analyses'] = len(lm.nlu_analyses)
             context['summary'] = lm.summary
+            context['customer_preferences'] = lm.get_customer_preferences()
         
         return context
     

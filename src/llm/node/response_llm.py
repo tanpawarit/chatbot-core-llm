@@ -185,15 +185,18 @@ def _build_system_prompt(lm_context: Optional[LongTermMemory] = None) -> str:
     prompt_parts.append(f"\n<product_details>\nAvailable products:\n{product_details}\n</product_details>")
     
     # Add long-term memory section if available
-    if lm_context and lm_context.events:
+    if lm_context and lm_context.nlu_analyses:
         lm_content_parts = ["Important user history:"]
         
-        important_events = lm_context.get_important_events(threshold=0.7)
+        important_analyses = lm_context.get_important_analyses(threshold=0.7)
         
-        for event in important_events:
-            lm_content_parts.append(f"- {event.event_type}: {event.content}")
-            if event.classification.intent:
-                lm_content_parts.append(f"(Intent: {event.classification.intent})")
+        for analysis in important_analyses:
+            lm_content_parts.append(f"- User said: {analysis.content}")
+            if analysis.primary_intent:
+                lm_content_parts.append(f"  (Intent: {analysis.primary_intent})")
+            if analysis.entities:
+                entity_values = [e.value for e in analysis.entities]
+                lm_content_parts.append(f"  (Mentioned: {', '.join(entity_values)})")
         
         if lm_context.summary:
             lm_content_parts.append(f"\nUser summary: {lm_context.summary}")

@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 from src.models import Message, MessageRole
-from src.llm.processor import event_processor
+from src.llm.processor import nlu_processor
 from src.memory.manager import memory_manager
 from src.utils.logging import setup_logging, get_logger
 
@@ -35,13 +35,13 @@ def process_user_input_simple(user_id: str, user_input: str) -> dict:
     # B→C→D→E→F→G: Memory processing (handled by memory_manager)
     conversation = memory_manager.process_user_message(user_id, user_message)
     
-    # H→I→J/K→M: Process through event processor (includes LM context)
-    event, assistant_response = event_processor.process_message(
+    # H→I→J/K→M: Process through NLU processor (includes LM context)
+    nlu_result, assistant_response = nlu_processor.process_message(
         user_id, user_message, conversation.messages
     )
      
-    # Check if important event was saved
-    is_important_event = event is not None and event.importance_score >= 0.7
+    # Check if important NLU analysis was saved
+    is_important_event = nlu_result is not None and nlu_result.importance_score >= 0.7
     
     # N: Save assistant response to SM
     assistant_message = Message(
@@ -57,7 +57,7 @@ def process_user_input_simple(user_id: str, user_input: str) -> dict:
     return {
         "user_message": user_message,
         "conversation": conversation,
-        "event": event,
+        "nlu_result": nlu_result,
         "is_important_event": is_important_event,
         "assistant_response": assistant_response,
         "assistant_message": assistant_message,
