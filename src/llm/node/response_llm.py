@@ -14,6 +14,15 @@ from src.utils.cost_calculator import format_cost_info
 logger = get_logger(__name__)
 
 
+RESPONSE_INSTRUCTION_PROMPT = """
+<instructions>
+You are a friendly and knowledgeable computer sales assistant.
+You can provide advice about computer products, hardware components, and system assembly.
+Answer questions about pricing, specifications, and product suitability.
+Respond in polite, friendly.
+</instructions>
+"""
+
 def _load_product_data() -> Optional[Dict[str, Any]]:
     """
     Load product data from JSON file
@@ -117,25 +126,15 @@ def generate_response(conversation_messages: List[Message], lm_context: Optional
         # Get LLM response
         response = llm.invoke(langchain_messages)
         
-        # Track token usage
-        if hasattr(response, 'usage_metadata') and response.usage_metadata:
+        # Track token usage (response is an AIMessage)
+        if isinstance(response, AIMessage) and hasattr(response, 'usage_metadata') and response.usage_metadata:
             try:
                 print(f"💰 Response LLM Usage:")
-                # Handle both object and dict formats
+                # UsageMetadata is a TypedDict, use dictionary access
                 usage = response.usage_metadata
-                if hasattr(usage, 'input_tokens'):
-                    # Object format
-                    input_tokens = usage.input_tokens
-                    output_tokens = usage.output_tokens
-                    total_tokens = usage.total_tokens
-                elif isinstance(usage, dict):
-                    # Dict format
-                    input_tokens = usage.get('input_tokens', 0)
-                    output_tokens = usage.get('output_tokens', 0)
-                    total_tokens = usage.get('total_tokens', input_tokens + output_tokens)
-                else:
-                    print("   Usage metadata format not supported")
-                    input_tokens = output_tokens = total_tokens = 0
+                input_tokens = usage.get('input_tokens', 0)
+                output_tokens = usage.get('output_tokens', 0)
+                total_tokens = usage.get('total_tokens', input_tokens + output_tokens)
                 
                 if input_tokens or output_tokens:
                     cost_info = format_cost_info(
@@ -179,14 +178,8 @@ def _build_system_prompt(lm_context: Optional[LongTermMemory] = None) -> str:
     product_data = _load_product_data()
     product_details = _format_product_details(product_data)
     
-    # Build instructions section
-    instructions = """You are a friendly and knowledgeable computer sales assistant.
-            You can provide advice about computer products, hardware components, and system assembly.
-            Answer questions about pricing, specifications, and product suitability.
-            Respond in polite, friendly, and easy-to-understand English."""
-    
     # Start building the tagged prompt
-    prompt_parts = [f"<instructions>\n{instructions}\n</instructions>"]
+    prompt_parts = [RESPONSE_INSTRUCTION_PROMPT]
     
     # Add product details section
     prompt_parts.append(f"\n<product_details>\nAvailable products:\n{product_details}\n</product_details>")
@@ -200,7 +193,7 @@ def _build_system_prompt(lm_context: Optional[LongTermMemory] = None) -> str:
         for event in important_events:
             lm_content_parts.append(f"- {event.event_type}: {event.content}")
             if event.classification.intent:
-                lm_content_parts.append(f"  (Intent: {event.classification.intent})")
+                lm_content_parts.append(f"(Intent: {event.classification.intent})")
         
         if lm_context.summary:
             lm_content_parts.append(f"\nUser summary: {lm_context.summary}")

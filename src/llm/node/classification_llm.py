@@ -3,7 +3,7 @@
 import json
 from typing import Optional
 from langchain_openai import ChatOpenAI
-from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
 
 from src.config import config_manager
 from src.models import EventClassification
@@ -14,7 +14,8 @@ logger = get_logger(__name__)
 
 
 # Event classification prompts and constants
-EVENT_CLASSIFICATION_SYSTEM_PROMPT = """<system_identity>
+EVENT_CLASSIFICATION_SYSTEM_PROMPT = """
+<system_identity>
 Conversation analysis expert specializing in context-aware event classification and importance assessment.
 </system_identity>
 
@@ -54,7 +55,8 @@ Respond with JSON following EventClassification schema only:
   "intent": "text description of user intent considering conversation context",
   "reasoning": "brief explanation including how context influenced classification"
 }
-</output_format>"""
+</output_format>
+"""
 
 def classify_event(user_message: str, conversation_context: list = None) -> Optional[EventClassification]:
     """
@@ -126,25 +128,15 @@ def classify_event(user_message: str, conversation_context: list = None) -> Opti
         # Get LLM response
         response = llm.invoke(messages) 
         
-        # Track token usage
-        if hasattr(response, 'usage_metadata') and response.usage_metadata:
+        # Track token usage (response is an AIMessage)
+        if isinstance(response, AIMessage) and hasattr(response, 'usage_metadata') and response.usage_metadata:
             try:
                 print(f"💰 Classification LLM Usage:")
-                # Handle both object and dict formats
+                # UsageMetadata is a TypedDict, use dictionary access
                 usage = response.usage_metadata
-                if hasattr(usage, 'input_tokens'):
-                    # Object format
-                    input_tokens = usage.input_tokens
-                    output_tokens = usage.output_tokens
-                    total_tokens = usage.total_tokens
-                elif isinstance(usage, dict):
-                    # Dict format
-                    input_tokens = usage.get('input_tokens', 0)
-                    output_tokens = usage.get('output_tokens', 0)
-                    total_tokens = usage.get('total_tokens', input_tokens + output_tokens)
-                else:
-                    print("   Usage metadata format not supported")
-                    input_tokens = output_tokens = total_tokens = 0
+                input_tokens = usage.get('input_tokens', 0)
+                output_tokens = usage.get('output_tokens', 0)
+                total_tokens = usage.get('total_tokens', input_tokens + output_tokens)
                 
                 if input_tokens or output_tokens:
                     cost_info = format_cost_info(
