@@ -15,7 +15,7 @@ logger = get_logger(__name__)
 
 # Event classification prompts and constants
 EVENT_CLASSIFICATION_SYSTEM_PROMPT = """<system_identity>
-Conversation analysis expert specializing in event classification and importance assessment.
+Conversation analysis expert specializing in context-aware event classification and importance assessment.
 </system_identity>
 
 <event_types>
@@ -37,22 +37,32 @@ Conversation analysis expert specializing in event classification and importance
 • 0.1-0.2: Greetings, social interactions
 </importance_scale>
 
+<context_awareness>
+You will be provided with conversation context (previous messages) to better understand the current message.
+Consider the conversation flow, user's journey, and context when classifying events:
+- Follow-up questions should maintain context from previous messages
+- Escalated concerns may have higher importance than standalone messages
+- Continuing conversations about transactions should be classified accordingly
+- References to previous discussions should inform classification
+</context_awareness>
+
 <output_format>
 Respond with JSON following EventClassification schema only:
 {
   "event_type": "one of the types above",
   "importance_score": 0.0-1.0,
-  "intent": "text description of user intent",
-  "reasoning": "brief explanation"
+  "intent": "text description of user intent considering conversation context",
+  "reasoning": "brief explanation including how context influenced classification"
 }
 </output_format>"""
 
-def classify_event(user_message: str) -> Optional[EventClassification]:
+def classify_event(user_message: str, conversation_context: list = None) -> Optional[EventClassification]:
     """
-    Classify user message into event type and importance using LLM
+    Classify user message into event type and importance using LLM with conversation context
     
     Args:
         user_message: User's message content
+        conversation_context: List of recent messages for context (default: None)
         
     Returns:
         EventClassification object or None if classification fails
@@ -72,11 +82,33 @@ def classify_event(user_message: str) -> Optional[EventClassification]:
             temperature=config.classification.temperature,
         ) 
         
-        # Prepare messages
-        messages = [
-            SystemMessage(content=EVENT_CLASSIFICATION_SYSTEM_PROMPT),
-            HumanMessage(content=user_message)
-        ]
+        # Prepare messages with context
+        messages = [SystemMessage(content=EVENT_CLASSIFICATION_SYSTEM_PROMPT)]
+        
+        # Add conversation context if provided (limit to last 4-5 messages)
+        if conversation_context:
+            # Get last 5 messages from conversation context (excluding current message)
+            recent_messages = conversation_context[-5:] if len(conversation_context) > 5 else conversation_context
+            
+            if recent_messages:
+                context_content = "<conversation_context>\n"
+                for i, msg in enumerate(recent_messages, 1):
+                    # Handle both Message objects and dict
+                    if hasattr(msg, 'role') and hasattr(msg, 'content'):
+                        role = msg.role.value if hasattr(msg.role, 'value') else str(msg.role)
+                        content = msg.content
+                    else:
+                        role = msg.get('role', 'unknown')
+                        content = msg.get('content', '')
+                    context_content += f"{i}. [{role.upper()}]: {content}\n"
+                context_content += "</conversation_context>\n\n"
+                context_content += f"<current_message_to_classify>\n{user_message}\n</current_message_to_classify>"
+                
+                messages.append(HumanMessage(content=context_content))
+            else:
+                messages.append(HumanMessage(content=user_message))
+        else:
+            messages.append(HumanMessage(content=user_message))
         
         logger.info("Classifying event", 
                    message_length=len(user_message),

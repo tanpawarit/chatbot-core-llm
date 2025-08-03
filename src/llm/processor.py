@@ -33,8 +33,11 @@ class EventProcessor:
             Tuple of (Event if created, generated response)
         """
         try:
-            # H: Classify Event
-            classification = classify_event(user_message.content)
+            # H: Classify Event with conversation context
+            # Use previous messages (last 4-5) as context, excluding current message
+            previous_messages = conversation_messages[:-1] if len(conversation_messages) > 1 else []
+            context_messages = previous_messages[-5:] if len(previous_messages) > 5 else previous_messages
+            classification = classify_event(user_message.content, context_messages)
             
             event = None
             if classification:
