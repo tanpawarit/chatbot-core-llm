@@ -28,7 +28,12 @@ class MemoryManager:
         if self.sm.exists(user_id) and self.sm.is_valid(user_id):
             # C: Load SM from Redis
             conversation = self.sm.load(user_id)
-            logger.info("Loaded existing SM", user_id=user_id)
+            if conversation is None:
+                # Fallback: create new conversation if load failed
+                conversation = Conversation(user_id=user_id)
+                logger.warning("SM load failed, created new conversation", user_id=user_id)
+            else:
+                logger.info("Loaded existing SM", user_id=user_id)
         else:
             # D: Load LM from JSON
             lm = self.lm.load(user_id)

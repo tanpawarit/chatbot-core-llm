@@ -86,7 +86,23 @@ def classify_event(user_message: str) -> Optional[EventClassification]:
         
         # Parse JSON response
         response_content = response.content if isinstance(response.content, str) else str(response.content)
-        classification_data = json.loads(response_content.strip())
+        
+        # Strip markdown code blocks if present
+        cleaned_content = response_content.strip()
+        if cleaned_content.startswith('```json'):
+            # Remove opening ```json and closing ```
+            cleaned_content = cleaned_content[7:]  # Remove ```json
+            if cleaned_content.endswith('```'):
+                cleaned_content = cleaned_content[:-3]  # Remove closing ```
+            cleaned_content = cleaned_content.strip()
+        elif cleaned_content.startswith('```'):
+            # Remove opening ``` and closing ```
+            cleaned_content = cleaned_content[3:]  # Remove opening ```
+            if cleaned_content.endswith('```'):
+                cleaned_content = cleaned_content[:-3]  # Remove closing ```
+            cleaned_content = cleaned_content.strip()
+        
+        classification_data = json.loads(cleaned_content)
         classification = EventClassification(**classification_data)
         
         logger.info("Event classified", 
@@ -98,7 +114,8 @@ def classify_event(user_message: str) -> Optional[EventClassification]:
     except json.JSONDecodeError as e:
         logger.error("Failed to parse LLM response as JSON", 
                     error=str(e), 
-                    response=response.content)
+                    response=response.content,
+                    cleaned_content=locals().get('cleaned_content', 'not_cleaned'))
         return None
     except Exception as e:
         logger.error("Failed to classify event", error=str(e))

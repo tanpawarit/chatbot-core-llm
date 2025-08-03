@@ -1,5 +1,5 @@
 import redis
-from typing import Optional, Any
+from typing import Optional, Any, cast
 import json
 from src.config import config_manager
 from src.utils.logging import get_logger
@@ -35,9 +35,11 @@ class RedisClient:
         try:
             json_data = json.dumps(value, default=str)
             if ttl:
-                return self.client.setex(key, ttl, json_data)
+                result = cast(bool, self.client.setex(key, ttl, json_data))
+                return bool(result)
             else:
-                return self.client.set(key, json_data)
+                result = cast(bool, self.client.set(key, json_data))
+                return bool(result)
         except Exception as e:
             logger.error("Failed to set JSON data", key=key, error=str(e))
             return False
@@ -54,21 +56,25 @@ class RedisClient:
     
     def exists(self, key: str) -> bool:
         try:
-            return bool(self.client.exists(key))
+            result = cast(int, self.client.exists(key))
+            return bool(result)
         except Exception as e:
             logger.error("Failed to check key existence", key=key, error=str(e))
             return False
     
     def delete(self, key: str) -> bool:
         try:
-            return bool(self.client.delete(key))
+            result = cast(int, self.client.delete(key))
+            return bool(result)
         except Exception as e:
             logger.error("Failed to delete key", key=key, error=str(e))
             return False
     
     def get_ttl(self, key: str) -> int:
         try:
-            return self.client.ttl(key)
+            # Cast the result to int to handle Redis ResponseT type
+            ttl_result = cast(int, self.client.ttl(key))
+            return ttl_result
         except Exception as e:
             logger.error("Failed to get TTL", key=key, error=str(e))
             return -1

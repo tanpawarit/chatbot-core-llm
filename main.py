@@ -1,4 +1,3 @@
-import uuid
 from datetime import datetime, timezone
 from src.models import Message, MessageRole
 from src.llm.processor import event_processor
