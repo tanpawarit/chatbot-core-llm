@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 from src.models import Message, MessageRole
-from src.llm.processor import nlu_processor
+from src.llm.processor import llm_processor
 from src.memory.manager import memory_manager
 from src.utils.logging import setup_logging, get_logger
 
@@ -33,10 +33,9 @@ def process_user_input(user_id: str, user_input: str) -> dict:
     )
     
     # B→C→D→E→F→G: Memory processing (handled by memory_manager)
-    conversation = memory_manager.process_user_message(user_id, user_message)
-    
-    # H→I→J/K→M: Process through NLU processor (includes LM context)
-    nlu_result, assistant_response = nlu_processor.process_message(
+    conversation = memory_manager.process_user_message(user_id, user_message) 
+    # H→I→J/K→M: Process through LLM processor (includes LM context)
+    nlu_result, assistant_response = llm_processor.process_message(
         user_id, user_message, conversation.messages
     )
      
@@ -95,7 +94,7 @@ def main():
             if user_input.lower() == 'stats':
                 # Show session statistics
                 print("\n📊 Session Statistics:")
-                nlu_processor.print_session_summary()
+                llm_processor.print_session_summary()
                 continue
             
             if not user_input:

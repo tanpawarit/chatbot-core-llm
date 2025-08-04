@@ -2,7 +2,7 @@
 
 from typing import Optional, Tuple
 from src.models import Message, NLUResult
-from src.llm.node.classification_llm import analyze_message_nlu, should_save_to_longterm, get_business_insights_from_nlu
+from src.llm.node.nlu_llm import analyze_message_nlu, should_save_to_longterm, get_business_insights_from_nlu
 from src.llm.node.response_llm import generate_response
 from src.memory.long_term import long_term_memory
 from src.config import config_manager
@@ -12,7 +12,7 @@ from src.utils.token_tracker import token_tracker
 logger = get_logger(__name__)
 
 
-class NLUProcessor:
+class LLMProcessor:
     """
     Handles the NLU processing flow (updated from EventProcessor):
     H[Analyze NLU] → I{Important Analysis?} → J[Save Analysis to LM] / K[Skip LM Save] 
@@ -104,4 +104,4 @@ class NLUProcessor:
     
 
 # Global instance
-nlu_processor = NLUProcessor()
+llm_processor = LLMProcessor()

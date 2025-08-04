@@ -77,7 +77,6 @@ class LongTermMemoryStore:
         
         return success
     
-    
     def create_from_conversation(self, conversation: Conversation, context: Optional[Dict[str, Any]] = None) -> LongTermMemory:
         """Create LM from conversation context"""
         lm = LongTermMemory(
