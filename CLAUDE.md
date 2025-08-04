@@ -4,118 +4,129 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Development Commands
 
-### Environment Setup
+### Project Setup
 ```bash
-# Install dependencies using uv (fast Python package installer)
+# Install dependencies using uv
 uv sync
 
-# Activate virtual environment
-source .venv/bin/activate
-
-# Set up environment variables (copy from example)
+# Set up environment variables (copy from .env.example)
 cp .env.example .env
-# Edit .env with your API keys: OPENROUTER_API_KEY, REDIS_URL
+# Edit .env with your OpenRouter API key and Redis URL
 ```
 
 ### Running the Application
 ```bash
-# Run the main chat application
+# Run the main chat interface
 python main.py
 
-# Or with uv
+# Run with uv
 uv run python main.py
 ```
 
-### Development Tools
+### Code Quality
 ```bash
-# Check syntax with pyflakes (included in dev dependencies)
-python -m pyflakes src/
+# Run linting (using pyflakes)
+uv run pyflakes src/
 
-# Run linting manually
-python -m pyflakes main.py src/
+# Check dependencies
+uv tree
 ```
 
-## Architecture Overview
+## High-Level Architecture
 
-This is a **conversational AI chatbot** for Thai computer sales with a **dual memory system** and **NLU-powered conversation flow**.
+### Core System Flow
+The application implements a dual-memory chatbot system with intelligent context routing:
 
-### Core Architecture Pattern
-
-The system follows a **simplified workflow** that replaces LangGraph complexity:
 ```
-A[User Message] → B{SM Valid?} → C[Load SM]/D[Load LM] → E[Create SM] → F[Save SM] → G[Add Message] 
-→ H[NLU Analysis] → I{Important?} → J[Save to LM]/K[Skip] → L[Generate Response] → M[Add Response] → N[Complete]
+User Input → Memory Manager → LLM Processor → Response Generation
+     ↓              ↓              ↓               ↓
+   Message      SM/LM Flow    NLU Analysis   Context Routing
 ```
 
 ### Key Components
 
-#### 1. **Dual Memory System** (`src/memory/`)
-- **Short-term Memory (SM)**: Redis-based conversation context (4-minute TTL)
-- **Long-term Memory (LM)**: JSON-based customer insights and important events
-- **Memory Manager**: Orchestrates the memory flow from the workflow diagram
+#### 1. Memory System (`src/memory/`)
+- **Short-term Memory (SM)**: Redis-based conversation storage with 4-minute TTL
+- **Long-term Memory (LM)**: JSON file storage for important user analyses 
+- **Memory Manager**: Orchestrates SM/LM flow as per diagram in README.md
+- **Flow**: User message → Check SM validity → Load/Create SM → Add to SM → Process → Save important NLU to LM
 
-#### 2. **NLU Processing** (`src/llm/`)
-- **Classification LLM**: Analyzes messages for intent, importance, and business insights
-- **Response LLM**: Generates contextual Thai responses for computer sales
-- **NLU Processor**: Orchestrates the analysis and response generation flow
-- **LLM Factory**: Centralized LLM instance creation with caching
+#### 2. LLM Processing (`src/llm/`)
+- **Processor**: Main orchestrator handling NLU analysis and response generation
+- **Factory Pattern**: Centralized LLM instance creation with caching (classification + response models)
+- **Dynamic Context Routing**: Token optimization system (19-64% savings) based on detected intents
+- **NLU Nodes**: Separate LLMs for classification vs response generation
 
-#### 3. **Configuration System** (`src/config/`)
-- **Environment-first**: Loads credentials from environment variables
-- **YAML fallback**: Falls back to `config.yaml` for development
-- **Config Manager**: Handles the dual configuration approach
+#### 3. Configuration System (`src/config/`)
+- **Hybrid Configuration**: Environment variables (sensitive) + YAML config (non-sensitive)  
+- **Manager**: Centralized config access with validation
+- **Env Loader**: Secure credential loading with fallbacks
 
-#### 4. **Domain-Specific Features**
-- **Thai Language Support**: All responses and error handling in Thai
-- **Computer Sales Context**: Product inventory, pricing, and sales workflows
-- **Business Intelligence**: Extracts customer insights from conversations
+#### 4. Utilities (`src/utils/`)
+- **Token Tracker**: Session-wide usage and cost monitoring
+- **Redis Client**: Connection management with error handling
+- **Logging**: Structured logging with Thai language support
+- **Cost Calculator**: LLM usage cost tracking
 
-### Memory Flow Logic
+### Architecture Principles
 
-The system implements a specific memory coordination pattern:
+#### Dynamic Context Routing System
+The system implements intelligent token optimization through intent-based context selection:
 
-1. **SM Check**: Validate existing short-term memory in Redis
-2. **Context Loading**: Load from SM (if valid) or create from LM context
-3. **Message Processing**: Add user message and process through NLU
-4. **Importance Assessment**: Score messages for long-term storage (threshold: 0.7)
-5. **Response Generation**: Generate contextual responses with LM context
-6. **State Persistence**: Save conversation state and important insights
+- **Intent Detection**: NLU analysis determines user intents (greet, purchase_intent, support_intent, etc.)
+- **Context Mapping**: Different intents trigger different context combinations:
+  - `greet`: minimal contexts (550 tokens, 64.5% savings)  
+  - `purchase_intent`: product-focused contexts (1,250 tokens, 19.4% savings)
+  - `support_intent`: support-focused contexts (750 tokens, 51.6% savings)
+- **Configuration-Driven**: Intent routing rules defined in `config.yaml`
+- **Fallback Safety**: Unknown intents use full context (1,550 tokens)
 
-### Configuration Priority
+#### Dual Memory Architecture
+- **SM (Short-term)**: Active conversation state in Redis, 4-minute TTL
+- **LM (Long-term)**: Important analyses saved to JSON files based on importance threshold (≥0.7)
+- **Importance Scoring**: Multi-factor scoring considering message length, intent specificity, and entity presence
+- **Context Coordination**: Response generation uses both SM conversation history and LM user insights
 
-The system uses a **secure configuration hierarchy**:
-1. **Environment Variables** (production): `OPENROUTER_API_KEY`, `REDIS_URL`
-2. **YAML Configuration** (development): `config.yaml`
-3. **Runtime Validation**: Validates credentials and configuration on startup
+#### LLM Usage Patterns  
+- **Classification LLM**: google/gemini-2.5-flash-lite for NLU analysis (JSON output, low temperature)
+- **Response LLM**: google/gemini-2.5-flash-lite for chat responses (text output, higher temperature)
+- **Factory Pattern**: Cached instances, centralized configuration
+- **Token Tracking**: Automatic usage monitoring with session statistics
 
-### NLU Classification System
+### Key Files to Understand
 
-The system classifies conversations into business-relevant categories:
-- **Event Types**: INQUIRY, FEEDBACK, REQUEST, COMPLAINT, TRANSACTION, SUPPORT, INFORMATION, GENERIC_EVENT
-- **Importance Scoring**: 0.0-1.0 scale for filtering important events
-- **Thai Intent Recognition**: Specialized for computer sales domain
+#### Core Flow Implementation
+- `main.py`: Main chat interface implementing A→B→C...→N workflow from README diagram
+- `src/memory/manager.py`: Memory orchestration following the flowchart logic
+- `src/llm/processor.py`: NLU analysis and response generation pipeline
+
+#### Architecture Components  
+- `src/llm/routing.py`: Dynamic context routing logic and token optimization
+- `src/llm/factory.py`: LLM instance management with caching
+- `src/config/manager.py`: Centralized configuration with env/YAML hybrid loading
+- `src/models.py`: Core data models (Message, Conversation, NLUResult)
+
+#### Configuration Files
+- `config.yaml`: NLU intent/entity configuration, LLM settings, memory TTL
+- `.env`: API credentials (OpenRouter key, Redis URL) - use `.env.example` as template
 
 ### Development Context
 
-This is a **refactored codebase** that has undergone significant architectural improvements:
-- **40% code duplication reduction** through factory patterns
-- **Standardized error handling** with Thai error messages
-- **Enhanced security** with environment-based configuration
-- **Improved maintainability** through separation of concerns
+#### Recent Refactoring (see note/REFACTORING_SUMMARY.md)
+- Implemented factory patterns to eliminate code duplication (~40% reduction)
+- Centralized token tracking and cost calculation
+- Enhanced security with environment-first configuration  
+- Standardized error handling with Thai language support
+- Pipeline pattern for modular message processing
 
-### Product Context
+#### Domain Context
+- **Target**: Thai computer sales chatbot
+- **NLU Intents**: greet, purchase_intent, inquiry_intent, support_intent, complain_intent
+- **Entity Types**: product, quantity, brand, price, color, model, spec, budget
+- **Language**: Thai language support throughout (error messages, responses)
 
-The chatbot serves as a **Thai computer sales assistant** with:
-- **Product Inventory**: Gaming PCs, components, peripherals with Thai pricing
-- **Customer Memory**: Tracks purchase history and preferences
-- **Business Intelligence**: Analyzes customer behavior and sales patterns
-- **Contextual Responses**: Provides product recommendations and support
-
-## Important Implementation Notes
-
-- **Never hardcode API keys** - always use environment variables
-- **Follow the workflow diagram** - the memory and NLU flow is specifically designed
-- **Maintain Thai language support** - all user-facing text should be in Thai
-- **Use the factory pattern** - LLM instances are cached and managed centrally
-- **Respect the memory hierarchy** - SM for active conversations, LM for insights
-- **Token tracking is automatic** - use `token_tracker.print_session_summary()` for stats
+#### Memory & Performance
+- **Token Budget**: 500-2000 tokens per response, optimized via context routing
+- **Memory TTL**: 4-minute conversation expiry in Redis
+- **Cost Tracking**: Automatic token usage and cost monitoring per session  
+- **Caching**: LLM instance caching, conversation state caching
