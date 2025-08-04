@@ -1,7 +1,4 @@
-"""Simple cost calculation utilities for LLM usage"""
-
-from typing import Optional
-
+"""Simple cost calculation utilities for LLM usage""" 
 
 # Approximate pricing for common models (per 1M tokens)
 # These are rough estimates - check current pricing from providers

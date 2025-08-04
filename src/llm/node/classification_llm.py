@@ -213,6 +213,7 @@ def analyze_message_nlu(user_message: str, conversation_context: Optional[list] 
         # Convert BaseMessage to AIMessage for token tracking
         from langchain_core.messages import AIMessage
         ai_response = AIMessage(content=response.content) if isinstance(response, BaseMessage) else response
+        
         usage = token_tracker.track_response(ai_response, openrouter_config.classification.model, "classification")
         if usage:
             token_tracker.print_usage(usage, "🧠")

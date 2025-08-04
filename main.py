@@ -18,7 +18,7 @@ def get_user_id() -> str:
         print("Please enter a valid user ID.")
 
 
-def process_user_input_simple(user_id: str, user_input: str) -> dict:
+def process_user_input(user_id: str, user_input: str) -> dict:
     """
     Simplified workflow replacing LangGraph complexity
     Implements the same flow: A→B→C→D→E→F→G→H→I→J/K→M→N
@@ -102,7 +102,7 @@ def main():
                 continue
             
             # Process user input through simplified workflow (A→B→C...→G→H→I→J/K→M→N)
-            final_state = process_user_input_simple(user_id, user_input)
+            final_state = process_user_input(user_id, user_input)
             
             # # Display response
             print(f"\n🤖 Bot: {final_state['assistant_response']}") 
