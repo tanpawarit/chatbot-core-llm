@@ -163,10 +163,9 @@ def analyze_message_nlu(user_message: str, conversation_context: Optional[list] 
         # Prepare messages with context
         messages: list[BaseMessage] = [SystemMessage(content=formatted_prompt)]
         
-        # Add conversation context if provided (limit to last 4-5 messages)
+        # Add conversation context if provided (already limited by caller)
         if conversation_context:
-            # Get last 5 messages from conversation context (excluding current message)
-            recent_messages = conversation_context[-5:] if len(conversation_context) > 5 else conversation_context
+            recent_messages = conversation_context
             
             if recent_messages:
                 context_content = "<conversation_context>\n"

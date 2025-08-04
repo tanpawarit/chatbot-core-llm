@@ -34,21 +34,10 @@ class MemoryManager:
                 logger.warning("SM load failed, created new conversation", user_id=user_id)
             else:
                 logger.info("Loaded existing SM", user_id=user_id)
-        else:
-            # D: Load LM from JSON
-            lm = self.lm.load(user_id)
-            
-            if lm:
-                # E: Create SM from LM Context
-                conversation = Conversation(
-                    user_id=user_id,
-                    metadata=lm.context
-                )
-                logger.info("Created SM from existing LM context", user_id=user_id)
-            else:
-                # Create brand new conversation
-                conversation = Conversation(user_id=user_id)
-                logger.info("Created new conversation", user_id=user_id)
+        else: 
+            # E: Create new SM without LM context (response will use LM anyway)
+            conversation = Conversation(user_id=user_id)
+            logger.info("Created new conversation", user_id=user_id)
             
             # F: Save SM to Redis
             self.sm.save(conversation)
