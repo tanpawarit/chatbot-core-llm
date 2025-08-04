@@ -7,7 +7,7 @@ from typing import Optional, Dict, Any
 from dataclasses import dataclass
 from datetime import datetime
 
-from langchain_core.messages import AIMessage
+from langchain_core.messages import BaseMessage
 from src.utils.cost_calculator import format_cost_info
 from src.utils.logging import get_logger
 
@@ -35,12 +35,12 @@ class TokenTracker:
     def __init__(self):
         self.usage_history: list[TokenUsage] = []
     
-    def track_response(self, response: AIMessage, model: str, operation_type: str = "unknown") -> Optional[TokenUsage]:
+    def track_response(self, response: BaseMessage, model: str, operation_type: str = "unknown") -> Optional[TokenUsage]:
         """
         Track token usage from LLM response and calculate costs
         
         Args:
-            response: AIMessage response from LLM
+            response: BaseMessage response from LLM
             model: Model name used
             operation_type: Type of operation ('classification', 'response', etc.)
             

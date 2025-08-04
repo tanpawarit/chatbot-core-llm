@@ -94,13 +94,17 @@ class ConfigManager:
         response_config = LLMModelConfig(**config_data['openrouter']['response'])
         
         openrouter_config = OpenRouterConfig(
-            api_key=config_data['openrouter']['api_key'],
-            base_url=config_data['openrouter']['base_url'],
+            api_key=env_loader.get_str('OPENROUTER_API_KEY', required=True),
+            base_url=env_loader.get_str('OPENROUTER_BASE_URL', 'https://openrouter.ai/api/v1'),
             classification=classification_config,
             response=response_config
         )
         
-        memory_config = MemoryConfig(**config_data['memory'])
+        memory_config = MemoryConfig(
+            redis_url=env_loader.get_str('REDIS_URL', required=True),
+            sm_ttl=config_data['memory'].get('sm_ttl', 240),
+            lm_base_path=config_data['memory'].get('lm_base_path', 'data/longterm')
+        )
         nlu_config = NLUConfig(**config_data['nlu'])
         
         return Config(

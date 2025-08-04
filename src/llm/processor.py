@@ -5,6 +5,7 @@ from src.models import Message, NLUResult
 from src.llm.node.classification_llm import analyze_message_nlu, should_save_to_longterm, get_business_insights_from_nlu
 from src.llm.node.response_llm import generate_response
 from src.memory.long_term import long_term_memory
+from src.config import config_manager
 from src.utils.logging import get_logger
 from src.utils.token_tracker import token_tracker
 
@@ -47,18 +48,30 @@ class NLUProcessor:
             
             if nlu_result:
                 # I: Important Analysis? → J/K: Save or Skip LM Save
+                importance = nlu_result.importance_score
+                threshold = config_manager.get_config().nlu.importance_threshold
+                message_preview = nlu_result.content[:30] + "..." if len(nlu_result.content) > 30 else nlu_result.content
+                
                 if should_save_to_longterm(nlu_result):
                     # J: Save Analysis to LM
                     self.lm.add_nlu_analysis(user_id, nlu_result)
-                    logger.info("Important NLU analysis saved to LM", 
-                               user_id=user_id, 
+                    logger.info("✅ SAVED to LM", 
+                               user_id=user_id,
+                               message=message_preview,
                                primary_intent=nlu_result.primary_intent,
-                               importance_score=nlu_result.importance_score)
+                               importance_score=f"{importance:.3f}",
+                               threshold=f"{threshold:.3f}",
+                               entities_count=len(nlu_result.entities),
+                               message_length=len(nlu_result.content))
                 else:
                     # K: Skip LM Save
-                    logger.debug("NLU analysis not important enough for LM", 
-                                user_id=user_id,
-                                importance_score=nlu_result.importance_score)
+                    logger.info("🚫 FILTERED OUT", 
+                               user_id=user_id,
+                               message=message_preview,
+                               primary_intent=nlu_result.primary_intent,
+                               importance_score=f"{importance:.3f}",
+                               threshold=f"{threshold:.3f}",
+                               reason="Below importance threshold")
                 
                 # Extract business insights for logging
                 insights = get_business_insights_from_nlu(nlu_result)

@@ -3,10 +3,8 @@ NLU Analysis System - Natural Language Understanding with Robust Parsing
 Replaces the old event classification system with comprehensive NLU analysis.
 """
 
-import json
 from typing import Optional, Dict, Any
-from langchain_openai import ChatOpenAI
-from langchain_core.messages import HumanMessage, SystemMessage, AIMessage, BaseMessage
+from langchain_core.messages import HumanMessage, SystemMessage, BaseMessage
 from langchain_core.prompts import PromptTemplate
 
 from src.config import config_manager
@@ -23,12 +21,15 @@ INTENT_DETECTION_PROMPT = """
 -Goal-
 Given a user utterance, detect and extract the user's **intent**, **entities**, **language**, and **sentiment**. You are also provided with pre-declared lists of possible default and additional intents and entities. Only extract intents/entities that appear in either default or additional lists. Assign confidence scores for each item extracted.
 
+IMPORTANT: Only extract entities that are EXPLICITLY mentioned in the current message being analyzed. Do NOT use entities from conversation context unless they appear in the current message text.
+
 -Steps-
 1. Identify the **top 3 intent(s)** that match the message. Consider both `default_intent` and `additional_intent` lists with their priority scores.
 Format each intent as:
 (intent{tuple_delimiter}<intent_name_in_snake_case>{tuple_delimiter}<confidence>{tuple_delimiter}<priority_score>{tuple_delimiter}<metadata>)
 
 2. Identify all **entities** present in the message, using both `default_entity` and `additional_entity` types.
+STRICT RULE: Only extract entities that are LITERALLY PRESENT in the current message text. Do not infer or assume entities from context.
 Format each entity as:
 (entity{tuple_delimiter}<entity_type>{tuple_delimiter}<entity_value>{tuple_delimiter}<confidence>{tuple_delimiter}<metadata>)
 
@@ -123,10 +124,11 @@ def analyze_message_nlu(user_message: str, conversation_context: Optional[list] 
     Returns:
         NLUResult object or None if analysis fails
     """
+    # Get configuration outside try block to ensure availability in exception handler
+    main_config = config_manager.get_config()
+    nlu_config = main_config.nlu
+    
     try:
-        # Get configuration
-        main_config = config_manager.get_config()
-        nlu_config = main_config.nlu
         
         # Get LLM instance from factory
         llm = llm_factory.get_classification_llm()
@@ -208,7 +210,10 @@ def analyze_message_nlu(user_message: str, conversation_context: Optional[list] 
         
         # Track token usage
         openrouter_config = config_manager.get_openrouter_config()
-        usage = token_tracker.track_response(response, openrouter_config.classification.model, "classification")
+        # Convert BaseMessage to AIMessage for token tracking
+        from langchain_core.messages import AIMessage
+        ai_response = AIMessage(content=response.content) if isinstance(response, BaseMessage) else response
+        usage = token_tracker.track_response(ai_response, openrouter_config.classification.model, "classification")
         if usage:
             token_tracker.print_usage(usage, "🧠")
         else:
@@ -221,9 +226,9 @@ def analyze_message_nlu(user_message: str, conversation_context: Optional[list] 
         if nlu_config.enable_robust_parsing:
             nlu_result = parse_nlu_response_robust(raw_response, nlu_config, user_message)
         else:
-            # Fallback to simple parsing (if needed)
-            logger.warning("Robust parsing disabled, using fallback method")
-            nlu_result = parse_nlu_response_simple(raw_response, user_message)
+            # Fallback: return None if robust parsing is disabled
+            logger.warning("Robust parsing disabled, no fallback available")
+            nlu_result = None
         
         if nlu_result:
             logger.info("NLU analysis completed", 
@@ -232,7 +237,7 @@ def analyze_message_nlu(user_message: str, conversation_context: Optional[list] 
                        importance_score=nlu_result.importance_score)
             
             # Print analysis summary
-            print(f"\n📊 NLU Analysis Summary:")
+            print("\n📊 NLU Analysis Summary:")
             print(f"   Primary Intent: {nlu_result.primary_intent}")
             print(f"   Entities Found: {len(nlu_result.entities)}")
             print(f"   Language: {nlu_result.primary_language}")
@@ -272,45 +277,13 @@ def parse_nlu_response_robust(raw_response: str, nlu_config, original_message: s
         return None
 
 
-def parse_nlu_response_simple(raw_response: str, original_message: str) -> Optional[NLUResult]:
-    """Simple fallback parsing (for backwards compatibility)."""
-    try:
-        # Try to extract JSON if present
-        cleaned_content = raw_response.strip()
-        if cleaned_content.startswith('```json'):
-            cleaned_content = cleaned_content[7:]
-            if cleaned_content.endswith('```'):
-                cleaned_content = cleaned_content[:-3]
-            cleaned_content = cleaned_content.strip()
-        elif cleaned_content.startswith('```'):
-            cleaned_content = cleaned_content[3:]
-            if cleaned_content.endswith('```'):
-                cleaned_content = cleaned_content[:-3]
-            cleaned_content = cleaned_content.strip()
-        
-        # Parse as JSON (validate format but use basic fallback conversion)
-        json.loads(cleaned_content)  # Validate JSON format
-        
-        # Convert to NLUResult (basic conversion)
-        nlu_result = NLUResult(
-            content=original_message,
-            intents=[NLUIntent(name="unknown", confidence=0.5, priority_score=0.5)],
-            entities=[],
-            languages=[NLULanguage(code="THA", confidence=0.8, is_primary=True)],
-            sentiment=NLUSentiment(label="neutral", confidence=0.5),
-            parsing_metadata={"strategy_used": "simple_json", "status": "fallback"}
-        )
-        
-        return nlu_result
-        
-    except Exception as e:
-        logger.error("Simple NLU parsing failed", error=str(e))
-        return None
-
 
 def convert_parsed_to_nlu_result(parsed_result: Dict[str, Any], original_message: str) -> NLUResult:
     """Convert parsed result from RobustNLUParser to NLUResult model."""
     try:
+        # Get configuration for importance scoring
+        main_config = config_manager.get_config()
+        nlu_config = main_config.nlu
         # Convert intents
         intents = []
         for intent_data in parsed_result.get("intents", []):
@@ -354,7 +327,7 @@ def convert_parsed_to_nlu_result(parsed_result: Dict[str, Any], original_message
                 metadata=sentiment_data["metadata"]
             )
         
-        # Create NLUResult
+        # Create NLUResult with importance scoring config
         nlu_result = NLUResult(
             content=original_message,
             intents=intents,
@@ -362,21 +335,29 @@ def convert_parsed_to_nlu_result(parsed_result: Dict[str, Any], original_message
             languages=languages,
             sentiment=sentiment,
             metadata=parsed_result.get("metadata", {}),
-            parsing_metadata=parsed_result.get("parsing_metadata", {})
+            parsing_metadata=parsed_result.get("parsing_metadata", {}),
+            config=nlu_config.importance_scoring
         )
         
         return nlu_result
         
     except Exception as e:
         logger.error("Failed to convert parsed result to NLUResult", error=str(e))
-        # Return basic NLUResult as fallback
+        # Return basic NLUResult as fallback - get config for fallback case
+        try:
+            main_config = config_manager.get_config()
+            config = main_config.nlu.importance_scoring
+        except:
+            config = None
+            
         return NLUResult(
             content=original_message,
             intents=[],
             entities=[],
             languages=[],
             sentiment=None,
-            parsing_metadata={"error": str(e), "status": "conversion_failed"}
+            parsing_metadata={"error": str(e), "status": "conversion_failed"},
+            config=config
         )
 
 

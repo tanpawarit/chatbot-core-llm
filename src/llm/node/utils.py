@@ -628,46 +628,6 @@ def create_nlu_parser_from_config(config: Dict[str, Any]) -> RobustNLUParser:
     )
 
 
-def calculate_importance_from_nlu(nlu_result: Dict[str, Any]) -> float:
-    """
-    Calculate importance score from NLU analysis.
-    
-    Based on:
-    - Intent confidence and priority
-    - Entity presence and confidence
-    - Sentiment intensity
-    """
-    try:
-        importance = 0.0
-        
-        # Intent contribution (60% weight)
-        if nlu_result.get("intents"):
-            top_intent = nlu_result["intents"][0]  # Already sorted by confidence
-            intent_weight = top_intent["confidence"] * top_intent.get("priority_score", 0.5)
-            importance += intent_weight * 0.6
-        
-        # Entity contribution (25% weight)
-        if nlu_result.get("entities"):
-            entity_confidence_avg = nlu_result["metadata"]["confidence_scores"]["entity_avg"]
-            entity_count_bonus = min(len(nlu_result["entities"]) * 0.1, 0.3)  # Max 0.3 bonus
-            importance += (entity_confidence_avg + entity_count_bonus) * 0.25
-        
-        # Sentiment contribution (15% weight)
-        if nlu_result.get("sentiment"):
-            sentiment = nlu_result["sentiment"]
-            sentiment_weight = sentiment["confidence"]
-            if sentiment["label"] in ["positive", "negative"]:  # Strong emotions get higher weight
-                sentiment_weight *= 1.2
-            importance += sentiment_weight * 0.15
-        
-        # Ensure within bounds
-        return max(0.0, min(1.0, importance))
-        
-    except Exception as e:
-        logger.error("Failed to calculate importance from NLU", error=str(e))
-        return 0.5  # Default fallback
-
-
 def extract_business_insights(nlu_result: Dict[str, Any]) -> Dict[str, Any]:
     """Extract business-relevant insights from NLU results."""
     insights = {

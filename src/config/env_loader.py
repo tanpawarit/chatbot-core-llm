@@ -4,7 +4,7 @@ Handles loading configuration from environment variables with YAML fallback
 """
 
 import os
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, overload
 from pathlib import Path
 
 from src.utils.logging import get_logger
@@ -43,6 +43,15 @@ class EnvLoader:
         else:
             logger.debug("Environment file not found", path=str(env_path))
     
+    @overload
+    def get_str(self, key: str, default: str, required: bool = False) -> str: ...
+    
+    @overload
+    def get_str(self, key: str, *, required: bool = True) -> str: ...
+    
+    @overload
+    def get_str(self, key: str, default: None = None, required: bool = False) -> Optional[str]: ...
+    
     def get_str(self, key: str, default: Optional[str] = None, required: bool = False) -> Optional[str]:
         """
         Get string value from environment
@@ -62,6 +71,15 @@ class EnvLoader:
         
         return value
     
+    @overload
+    def get_int(self, key: str, default: int, required: bool = False) -> int: ...
+    
+    @overload
+    def get_int(self, key: str, *, required: bool = True) -> int: ...
+    
+    @overload
+    def get_int(self, key: str, default: None = None, required: bool = False) -> Optional[int]: ...
+    
     def get_int(self, key: str, default: Optional[int] = None, required: bool = False) -> Optional[int]:
         """Get integer value from environment"""
         value = self.get_str(key, required=required)
@@ -77,6 +95,15 @@ class EnvLoader:
             logger.warning("Invalid integer value in environment", key=key, value=value, using_default=default)
             return default
     
+    @overload
+    def get_float(self, key: str, default: float, required: bool = False) -> float: ...
+    
+    @overload
+    def get_float(self, key: str, *, required: bool = True) -> float: ...
+    
+    @overload
+    def get_float(self, key: str, default: None = None, required: bool = False) -> Optional[float]: ...
+    
     def get_float(self, key: str, default: Optional[float] = None, required: bool = False) -> Optional[float]:
         """Get float value from environment"""
         value = self.get_str(key, required=required)
@@ -91,6 +118,15 @@ class EnvLoader:
                 raise ValueError(f"Environment variable '{key}' must be a float, got: {value}")
             logger.warning("Invalid float value in environment", key=key, value=value, using_default=default)
             return default
+    
+    @overload
+    def get_bool(self, key: str, default: bool, required: bool = False) -> bool: ...
+    
+    @overload
+    def get_bool(self, key: str, *, required: bool = True) -> bool: ...
+    
+    @overload
+    def get_bool(self, key: str, default: None = None, required: bool = False) -> Optional[bool]: ...
     
     def get_bool(self, key: str, default: Optional[bool] = None, required: bool = False) -> Optional[bool]:
         """Get boolean value from environment"""
