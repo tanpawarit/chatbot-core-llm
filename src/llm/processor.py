@@ -4,6 +4,7 @@ from typing import Optional, Tuple
 from src.models import Message, NLUResult
 from src.llm.node.nlu_llm import analyze_message_nlu, should_save_to_longterm, get_business_insights_from_nlu
 from src.llm.node.response_llm import generate_response
+from src.llm.routing import context_router
 from src.memory.long_term import long_term_memory
 from src.config import config_manager
 from src.utils.logging import get_logger
@@ -81,8 +82,15 @@ class LLMProcessor:
                            urgency_level=insights.get('urgency_level'),
                            requires_attention=insights.get('requires_human_attention'))
             
-            # L: Generate Response with LM context (loaded before processing current message)
-            response_content = generate_response(conversation_messages, lm_context)
+            # L: Generate Response with selective context based on NLU routing
+            context_selection = context_router.determine_required_contexts(nlu_result)
+            estimated_tokens = context_router.estimate_token_usage(context_selection)
+            
+            logger.info("Context routing completed", 
+                       context_selection=context_selection,
+                       estimated_tokens=estimated_tokens)
+            
+            response_content = generate_response(conversation_messages, lm_context, context_selection)
             
             logger.info("NLU analysis and response generated", 
                        user_id=user_id,

@@ -123,13 +123,16 @@ def _format_product_details(product_data: Optional[Dict[str, Any]]) -> str:
     return "\n".join(formatted_products)
 
 
-def generate_response(conversation_messages: List[Message], lm_context: Optional[LongTermMemory] = None) -> str:
+def generate_response(conversation_messages: List[Message], 
+                     lm_context: Optional[LongTermMemory] = None,
+                     context_selection: Optional[Dict[str, bool]] = None) -> str:
     """
     Generate chat response from conversation messages using LLM
     
     Args:
         conversation_messages: List of conversation messages
         lm_context: Optional long-term memory context for system prompt
+        context_selection: Optional context selection for prompt building
         
     Returns:
         Generated response string
@@ -141,8 +144,8 @@ def generate_response(conversation_messages: List[Message], lm_context: Optional
         # Get configuration for logging
         config = config_manager.get_openrouter_config()
         
-        # Build system prompt with LM context
-        system_prompt = _build_system_prompt(lm_context)
+        # Build system prompt with context selection
+        system_prompt = _build_system_prompt(lm_context, context_selection)
         
         # Convert to LangChain message format
         langchain_messages = []
@@ -194,33 +197,55 @@ def generate_response(conversation_messages: List[Message], lm_context: Optional
         raise
 
 
-def _build_system_prompt(lm_context: Optional[LongTermMemory] = None) -> str:
+def _build_system_prompt(lm_context: Optional[LongTermMemory] = None, 
+                        context_selection: Optional[Dict[str, bool]] = None) -> str:
     """
-    Build system prompt with tagged format including product details and LM context
+    Build system prompt with selective context based on routing
     
     Args:
         lm_context: Optional long-term memory context
+        context_selection: Dict of context types to include
         
     Returns:
-        System prompt string with structured tags
+        System prompt string with selected contexts
     """
-    # Load product data
-    product_data = _load_product_data()
-    product_details = _format_product_details(product_data)
+    # Default to all contexts if no selection provided (backward compatibility)
+    if context_selection is None:
+        context_selection = {
+            "core_behavior": True,
+            "interaction_guidelines": True,
+            "product_details": True,
+            "business_policies": True,
+            "user_history": True,
+        }
     
-    # Build system prompt with hierarchical structure
-    prompt_parts = [
-        RESPONSE_CORE_PROMPT,          # Primary behavior definition
-        RESPONSE_BUSINESS_PROMPT,      # Store context and policies  
-        RESPONSE_INTERACTION_PROMPT,   # Customer interaction guidelines
-        RESPONSE_QUALITY_PROMPT        # Accuracy and error handling
-    ]
+    # Build prompt with selected contexts
+    prompt_parts = []
     
-    # Add product details section
-    prompt_parts.append(f"\n<product_details>\nAvailable products:\n{product_details}\n</product_details>")
+    # Always include core behavior
+    if context_selection.get("core_behavior", False):
+        prompt_parts.append(RESPONSE_CORE_PROMPT)
     
-    # Add long-term memory section if available
-    if lm_context and lm_context.nlu_analyses:
+    # Business context (policies, payment, services)
+    if context_selection.get("business_policies", False):
+        prompt_parts.append(RESPONSE_BUSINESS_PROMPT)
+    
+    # Interaction guidelines
+    if context_selection.get("interaction_guidelines", False):
+        prompt_parts.append(RESPONSE_INTERACTION_PROMPT)
+    
+    # Quality standards (accuracy, error handling)  
+    if context_selection.get("quality_standards", False):
+        prompt_parts.append(RESPONSE_QUALITY_PROMPT)
+    
+    # Product details (expensive context)
+    if context_selection.get("product_details", False):
+        product_data = _load_product_data()
+        product_details = _format_product_details(product_data)
+        prompt_parts.append(f"\n<product_details>\nAvailable products:\n{product_details}\n</product_details>")
+    
+    # User history (personalization context)
+    if context_selection.get("user_history", False) and lm_context and lm_context.nlu_analyses:
         lm_content_parts = ["Important user history:"]
         
         important_analyses = lm_context.get_important_analyses(threshold=0.7)

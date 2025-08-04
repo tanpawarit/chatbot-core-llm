@@ -25,8 +25,9 @@ memory:
 # NLU Configuration for intent/entity detection
 nlu:
   # Intent configuration for Thai computer sales
-  default_intent: "purchase_intent:0.8, inquiry_intent:0.7, support_intent:0.6, complain_intent:0.6, past_purchase:0.7"
-  additional_intent: "greet:0.3, complaint:0.5, cancel_order:0.4, ask_price:0.6, compare_product:0.5"
+  default_intent: "greet:0.3, purchase_intent:0.8, inquiry_intent:0.7, support_intent:0.6, complain_intent:0.6"
+  additional_intent: "complaint:0.5, cancel_order:0.4, ask_price:0.6, compare_product:0.5"
+  
   
   # Entity configuration for computer sales domain
   default_entity: "product, quantity, brand, price"

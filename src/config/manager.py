@@ -61,19 +61,14 @@ class ConfigManager:
             lm_base_path=env_loader.get_str('LM_BASE_PATH', 'data/longterm')
         )
         
-        # Load NLU config from environment (with defaults)
-        nlu_config = NLUConfig(
-            default_intent=env_loader.get_str('NLU_DEFAULT_INTENT', "purchase_intent:0.8, inquiry_intent:0.7, support_intent:0.6, complain_intent:0.6, past_purchase:0.7"),
-            additional_intent=env_loader.get_str('NLU_ADDITIONAL_INTENT', "greet:0.3, complaint:0.5, cancel_order:0.4, ask_price:0.6, compare_product:0.5"),
-            default_entity=env_loader.get_str('NLU_DEFAULT_ENTITY', "product, quantity, brand, price"),
-            additional_entity=env_loader.get_str('NLU_ADDITIONAL_ENTITY', "color, model, spec, budget, warranty, delivery"),
-            tuple_delimiter=env_loader.get_str('NLU_TUPLE_DELIMITER', "<||>"),
-            record_delimiter=env_loader.get_str('NLU_RECORD_DELIMITER', "##"),
-            completion_delimiter=env_loader.get_str('NLU_COMPLETION_DELIMITER', "<|COMPLETE|>"),
-            enable_robust_parsing=env_loader.get_bool('NLU_ENABLE_ROBUST_PARSING', True),
-            fallback_to_simple_json=env_loader.get_bool('NLU_FALLBACK_TO_SIMPLE_JSON', True),
-            importance_threshold=env_loader.get_float('NLU_IMPORTANCE_THRESHOLD', 0.7)
-        )
+        # Load NLU config from YAML file (NLU should be dynamic, not hardcoded in ENV)
+        if not self.config_path.exists():
+            raise FileNotFoundError(f"Config file required for NLU configuration: {self.config_path}")
+        
+        with open(self.config_path, 'r', encoding='utf-8') as f:
+            config_data = yaml.safe_load(f)
+        
+        nlu_config = NLUConfig(**config_data['nlu'])
         
         return Config(
             openrouter=openrouter_config,
