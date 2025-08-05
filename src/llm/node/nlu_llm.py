@@ -9,7 +9,7 @@ from langchain_core.prompts import PromptTemplate
 
 from src.config import config_manager
 from src.models import NLUResult, NLUIntent, NLUEntity, NLULanguage, NLUSentiment
-from src.llm.node.utils import create_nlu_parser_from_config, extract_business_insights
+from src.llm.node.utils import create_pyparsing_nlu_parser_from_config, extract_business_insights
 from src.llm.factory import llm_factory
 from src.utils.logging import get_logger
 from src.utils.token_tracker import token_tracker
@@ -190,6 +190,9 @@ def analyze_message_nlu(user_message: str, conversation_context: Optional[list] 
             # Convert to HumanMessage for user message
             messages.append(HumanMessage(content=user_message))
         
+        import time
+        analysis_start = time.time()
+        
         logger.info("Analyzing message with NLU", 
                    message_length=len(user_message))
         
@@ -204,8 +207,32 @@ def analyze_message_nlu(user_message: str, conversation_context: Optional[list] 
             print(f"{i}. [{role}] {content}")
         print("="*60)
         
-        # Get LLM response
-        response = llm.invoke(messages)
+        # Get LLM response with timeout handling
+        try:
+            import signal
+            
+            def timeout_handler(signum, frame):
+                raise TimeoutError("LLM request timed out after 30 seconds")
+            
+            # Set up signal handler for timeout
+            signal.signal(signal.SIGALRM, timeout_handler)
+            signal.alarm(30)  # 30 second alarm
+            
+            try:
+                response = llm.invoke(messages)
+                signal.alarm(0)  # Cancel alarm on success
+            except TimeoutError:
+                logger.error("LLM request timed out")
+                print("⏰ LLM request timed out after 30 seconds")
+                return None
+            finally:
+                signal.alarm(0)  # Always cancel alarm
+                
+        except Exception as llm_error:
+            logger.error("LLM invoke failed", error=str(llm_error))
+            # Print error for user visibility
+            print(f"❌ LLM API Error: {str(llm_error)}")
+            return None
         
         # Track token usage
         openrouter_config = config_manager.get_openrouter_config()
@@ -219,22 +246,30 @@ def analyze_message_nlu(user_message: str, conversation_context: Optional[list] 
         else:
             print("🧠 NLU Analysis Usage: No usage metadata available")
         
-        # Parse NLU response using RobustNLUParser
+        # Parse NLU response using PyParsingNLUParser
         raw_response = response.content if isinstance(response.content, str) else str(response.content)
         
-        # Use RobustNLUParser
+        # Use PyParsingNLUParser
         if nlu_config.enable_robust_parsing:
-            nlu_result = parse_nlu_response_robust(raw_response, nlu_config, user_message)
+            nlu_result = parse_nlu_response_pyparsing(raw_response, nlu_config, user_message)
         else:
-            # Fallback: return None if robust parsing is disabled
-            logger.warning("Robust parsing disabled, no fallback available")
+            # Fallback: return None if parsing is disabled
+            logger.warning("Parsing disabled, no fallback available")
             nlu_result = None
         
         if nlu_result:
+            analysis_time = time.time() - analysis_start
             logger.info("NLU analysis completed", 
                        intents_found=len(nlu_result.intents),
                        entities_found=len(nlu_result.entities),
-                       importance_score=nlu_result.importance_score)
+                       importance_score=nlu_result.importance_score,
+                       analysis_time_ms=round(analysis_time * 1000, 2))
+            
+            # Warn if analysis took too long
+            if analysis_time > 5.0:  # >5 seconds
+                logger.warning("Slow NLU analysis detected", 
+                              analysis_time_ms=round(analysis_time * 1000, 2),
+                              message_length=len(user_message))
             
             # Print analysis summary
             print("\n📊 NLU Analysis Summary:")
@@ -254,11 +289,11 @@ def analyze_message_nlu(user_message: str, conversation_context: Optional[list] 
         return None
 
 
-def parse_nlu_response_robust(raw_response: str, nlu_config, original_message: str) -> Optional[NLUResult]:
-    """Parse NLU response using RobustNLUParser."""
+def parse_nlu_response_pyparsing(raw_response: str, nlu_config, original_message: str) -> Optional[NLUResult]:
+    """Parse NLU response using PyParsingNLUParser."""
     try:
-        # Create parser from config
-        parser = create_nlu_parser_from_config({
+        # Create pyparsing parser from config
+        parser = create_pyparsing_nlu_parser_from_config({
             "tuple_delimiter": nlu_config.tuple_delimiter,
             "record_delimiter": nlu_config.record_delimiter,
             "completion_delimiter": nlu_config.completion_delimiter
@@ -273,13 +308,13 @@ def parse_nlu_response_robust(raw_response: str, nlu_config, original_message: s
         return nlu_result
         
     except Exception as e:
-        logger.error("Robust NLU parsing failed", error=str(e))
+        logger.error("PyParsing NLU parsing failed", error=str(e))
         return None
 
 
 
 def convert_parsed_to_nlu_result(parsed_result: Dict[str, Any], original_message: str) -> NLUResult:
-    """Convert parsed result from RobustNLUParser to NLUResult model."""
+    """Convert parsed result from PyParsingNLUParser to NLUResult model."""
     try:
         # Get configuration for importance scoring
         main_config = config_manager.get_config()

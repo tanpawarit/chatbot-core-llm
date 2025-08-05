@@ -15,14 +15,14 @@ class ConfigManager:
     
     def load_config(self) -> Config:
         if self._config is None:
-            # Try environment variables first, then fallback to YAML
+            # Use YAML as primary, environment for API keys only
             try:
-                self._config = self._load_from_environment()
-                logger.info("Configuration loaded from environment variables")
-            except Exception as env_error:
-                logger.info("Environment configuration failed, falling back to YAML", error=str(env_error))
                 self._config = self._load_from_yaml()
                 logger.info("Configuration loaded from YAML file")
+            except Exception as yaml_error:
+                logger.info("YAML configuration failed, falling back to environment", error=str(yaml_error))
+                self._config = self._load_from_environment()
+                logger.info("Configuration loaded from environment variables")
         
         return self._config
     

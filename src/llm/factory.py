@@ -57,6 +57,10 @@ class LLMFactory:
                 api_key=convert_to_secret_str(config.api_key),
                 base_url=config.base_url,
                 temperature=config.classification.temperature,
+                request_timeout=15.0,  # Reduce to 15 seconds
+                max_retries=0,         # No retries for faster response
+                timeout=15.0,          # OpenAI client timeout
+                http_client=None,      # Use default HTTP client with keep-alive
             )
         
         return self._instances[key]
@@ -84,6 +88,10 @@ class LLMFactory:
                 api_key=convert_to_secret_str(config.api_key),
                 base_url=config.base_url,
                 temperature=config.response.temperature,
+                request_timeout=15.0,  # Reduce to 15 seconds
+                max_retries=0,         # No retries for faster response
+                timeout=15.0,          # OpenAI client timeout
+                http_client=None,      # Use default HTTP client with keep-alive
             )
         
         return self._instances[key]
@@ -112,6 +120,9 @@ class LLMFactory:
                 api_key=convert_to_secret_str(config.api_key),
                 base_url=config.base_url,
                 temperature=temperature,
+                request_timeout=30.0,  # 30 second timeout
+                max_retries=1,         # Reduce retries for faster failure
+                timeout=30.0,          # OpenAI client timeout
             )
         
         return self._instances[key]
