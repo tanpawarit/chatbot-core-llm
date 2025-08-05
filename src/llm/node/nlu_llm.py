@@ -203,15 +203,16 @@ def analyze_message_nlu(user_message: str, conversation_context: Optional[list] 
         for i, msg in enumerate(messages, 1):
             role = type(msg).__name__.replace("Message", "").upper()
             content_str = str(msg.content)
-            content = content_str[:200] + "..." if len(content_str) > 200 else content_str
-            print(f"{i}. [{role}] {content}")
+            # content = content_str[:200] + "..." if len(content_str) > 200 else content_str
+            # print(f"{i}. [{role}] {content}")
+            print(content_str)
         print("="*60)
         
         # Get LLM response with timeout handling
         try:
             import signal
             
-            def timeout_handler(signum, frame):
+            def timeout_handler(_signum, _frame):
                 raise TimeoutError("LLM request timed out after 30 seconds")
             
             # Set up signal handler for timeout
