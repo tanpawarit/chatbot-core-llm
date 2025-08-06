@@ -305,7 +305,6 @@ class NLUConfig(BaseModel):
     record_delimiter: str = "##"
     completion_delimiter: str = "<|COMPLETE|>"
     enable_robust_parsing: bool = True
-    fallback_to_simple_json: bool = True
     importance_threshold: float = Field(ge=0.0, le=1.0, default=0.7)
     importance_scoring: ImportanceScoringConfig = Field(default_factory=ImportanceScoringConfig)
 
@@ -321,6 +320,7 @@ class MemoryConfig(BaseModel):
     redis_url: str
     sm_ttl: int = Field(ge=60, default=1800)  # 30 minutes default
     lm_base_path: str = "data/longterm"
+    extend_ttl_on_activity: bool = True  # Extend TTL when users send messages
 
 
 class Config(BaseModel):

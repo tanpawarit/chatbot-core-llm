@@ -58,7 +58,8 @@ class ConfigManager:
         memory_config = MemoryConfig(
             redis_url=env_loader.get_str('REDIS_URL', required=True),
             sm_ttl=env_loader.get_int('SM_TTL', 240),
-            lm_base_path=env_loader.get_str('LM_BASE_PATH', 'data/longterm')
+            lm_base_path=env_loader.get_str('LM_BASE_PATH', 'data/longterm'),
+            extend_ttl_on_activity=env_loader.get_bool('EXTEND_TTL_ON_ACTIVITY', True)
         )
         
         # Load NLU config from YAML file (NLU should be dynamic, not hardcoded in ENV)
@@ -98,7 +99,8 @@ class ConfigManager:
         memory_config = MemoryConfig(
             redis_url=env_loader.get_str('REDIS_URL', required=True),
             sm_ttl=config_data['memory'].get('sm_ttl', 240),
-            lm_base_path=config_data['memory'].get('lm_base_path', 'data/longterm')
+            lm_base_path=config_data['memory'].get('lm_base_path', 'data/longterm'),
+            extend_ttl_on_activity=config_data['memory'].get('extend_ttl_on_activity', True)
         )
         nlu_config = NLUConfig(**config_data['nlu'])
         

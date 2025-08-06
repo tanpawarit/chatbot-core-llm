@@ -78,6 +78,24 @@ class RedisClient:
         except Exception as e:
             logger.error("Failed to get TTL", key=key, error=str(e))
             return -1
+    
+    def expire(self, key: str, ttl: int) -> bool:
+        """
+        Set expiration time for a key
+        
+        Args:
+            key: Redis key
+            ttl: Time to live in seconds
+            
+        Returns:
+            bool: True if TTL was set successfully
+        """
+        try:
+            result = cast(bool, self.client.expire(key, ttl))
+            return bool(result)
+        except Exception as e:
+            logger.error("Failed to set TTL", key=key, ttl=ttl, error=str(e))
+            return False
 
 
 # Global Redis client instance

@@ -2,6 +2,7 @@ from typing import Optional, Dict, Any
 from src.models import Conversation, Message, NLUResult
 from src.memory.short_term import short_term_memory
 from src.memory.long_term import long_term_memory
+from src.config import config_manager
 from src.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -21,6 +22,7 @@ class MemoryManager:
     def process_user_message(self, user_id: str, user_message: Message) -> Conversation:
         """
         Main flow implementation following your diagram A→B→C...→G
+        Enhanced with TTL extension for active conversations
         """
         logger.info("Processing user message", user_id=user_id)
         
@@ -33,18 +35,18 @@ class MemoryManager:
                 conversation = Conversation(user_id=user_id)
                 logger.warning("SM load failed, created new conversation", user_id=user_id)
             else:
-                logger.info("Loaded existing SM", user_id=user_id)
+                logger.info("Loaded existing SM - TTL will be extended", user_id=user_id)
         else: 
             # E: Create new SM without LM context (response will use LM anyway)
             conversation = Conversation(user_id=user_id)
             logger.info("Created new conversation", user_id=user_id)
             
-            # F: Save SM to Redis
-            self.sm.save(conversation)
+            # F: Save SM to Redis (new conversation, no TTL extension)
+            self.sm.save(conversation, extend_if_exists=False)
         
-        # G: Add Message to SM
+        # G: Add Message to SM with TTL extension for existing conversations
         conversation.add_message(user_message)
-        self.sm.save(conversation)
+        self.sm.save(conversation, extend_if_exists=True)
         
         logger.info("User message processed and added to SM", 
                    user_id=user_id,
@@ -53,11 +55,24 @@ class MemoryManager:
         return conversation
     
     def add_assistant_response(self, user_id: str, response_message: Message) -> bool:
-        """Add assistant response to conversation"""
-        success = self.sm.add_message(user_id, response_message)
+        """
+        Add assistant response to conversation with TTL extension
+        This keeps the conversation alive after bot responses too
+        """
+        # Load conversation first
+        conversation = self.sm.load(user_id)
+        if not conversation:
+            logger.error("Cannot add assistant response: SM not found", user_id=user_id)
+            return False
+        
+        # Add message and save with TTL extension
+        conversation.add_message(response_message)
+        success = self.sm.save(conversation, extend_if_exists=True)
         
         if success:
-            logger.info("Assistant response added to SM", user_id=user_id)
+            logger.info("Assistant response added to SM with TTL extension", user_id=user_id)
+        else:
+            logger.error("Failed to add assistant response to SM", user_id=user_id)
         
         return success
     
@@ -68,7 +83,6 @@ class MemoryManager:
         """
         # Use config threshold if not provided
         if threshold is None:
-            from src.config import config_manager
             threshold = config_manager.get_nlu_config().importance_threshold
         
         if nlu_result.importance_score >= threshold:

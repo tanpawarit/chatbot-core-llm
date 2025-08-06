@@ -65,11 +65,14 @@ Personalization Strategy:
 - Tailor recommendations to stated budget and preferences
 
 Conversation Flow:
-- Acknowledge customer needs before providing solutions
-- Confirm understanding before making recommendations
-- Provide alternative options when primary choice isn't available
-- End responses with clear, actionable next steps
-- Use structured formatting with bullet points for clarity
+- Ask clarifying questions first instead of immediately listing multiple options
+- Gather key information before making recommendations:
+  * Budget or price range
+  * Intended use or purpose
+  * Specific preferences or requirements
+- Wait for sufficient details before suggesting products/services
+- Provide focused recommendations (1-2 options) rather than overwhelming lists
+- Use conversational questions to understand customer needs better
 </interaction_guidelines>
 """
 
@@ -187,31 +190,12 @@ def generate_response(conversation_messages: List[Message],
             print(f"{i}. [{role}] {msg.content}")
         print("="*60)
         
-        # Get LLM response with timeout handling
+        # Get LLM response
         try:
-            import signal
-            
-            def timeout_handler(_signum, _frame):
-                raise TimeoutError("LLM request timed out after 30 seconds")
-            
-            # Set up signal handler for timeout
-            signal.signal(signal.SIGALRM, timeout_handler)
-            signal.alarm(30)  # 30 second alarm
-            
-            try:
-                response = llm.invoke(langchain_messages)
-                signal.alarm(0)  # Cancel alarm on success
-            except TimeoutError:
-                logger.error("Response LLM request timed out")
-                print("⏰ Response LLM request timed out after 30 seconds")
-                raise Exception("การสร้างคำตอบใช้เวลานานเกินไป กรุณาลองใหม่อีกครั้ง")
-            finally:
-                signal.alarm(0)  # Always cancel alarm
+            response = llm.invoke(langchain_messages)
                 
         except Exception as llm_error:
-            logger.error("Response LLM invoke failed", error=str(llm_error))
-            # Print error for user visibility
-            print(f"❌ Response LLM API Error: {str(llm_error)}")
+            logger.error("Response LLM invoke failed", error=str(llm_error)) 
             raise Exception(f"เกิดข้อผิดพลาดในการสร้างคำตอบ: {str(llm_error)}")
         
         # Track token usage
@@ -282,9 +266,9 @@ def _build_system_prompt(lm_context: Optional[LongTermMemory] = None,
         product_details = _format_product_details(product_data)
         prompt_parts.append(f"\n<product_details>\nAvailable products:\n{product_details}\n</product_details>")
     
-    # User history (personalization context)
+    # User history (personalization context) - Background reference only
     if context_selection.get("user_history", False) and lm_context and lm_context.nlu_analyses:
-        lm_content_parts = ["Important user history:"]
+        lm_content_parts = ["Background user history (reference only):"]
         
         important_analyses = lm_context.get_important_analyses(threshold=0.7)
         
@@ -302,9 +286,14 @@ def _build_system_prompt(lm_context: Optional[LongTermMemory] = None,
         if lm_context.summary:
             lm_content_parts.append(f"\nUser summary: {lm_context.summary}")
         
-        lm_content_parts.append("\nUse the above history to provide appropriate recommendations")
-        
         lm_content = "\n".join(lm_content_parts)
         prompt_parts.append(f"\n<long_term_memory>\n{lm_content}\n</long_term_memory>")
     
+    # Add priority instruction for current session focus
+    prompt_parts.append("""
+    <session_priority>
+    IMPORTANT: Focus primarily on the current conversation flow below. Use the background history above only as general reference when relevant.
+    Priority: Current Session (70%) > Historical Context (30%)
+    </session_priority>""")
+        
     return "\n".join(prompt_parts)

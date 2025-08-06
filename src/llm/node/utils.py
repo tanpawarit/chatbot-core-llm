@@ -5,6 +5,7 @@ Using pyparsing library for cleaner, more maintainable parsing.
 
 import json
 import re
+import time
 from typing import Dict, Any
 from enum import Enum
 
@@ -24,7 +25,6 @@ class ParseStatus(Enum):
     PARSE_ERROR = "parse_error"
     VALIDATION_ERROR = "validation_error"
     FORMAT_ERROR = "format_error"
-    INPUT_TOO_SHORT = "input_too_short"
 
 
 class PyParsingNLUParser:
@@ -127,7 +127,6 @@ class PyParsingNLUParser:
         Returns:
             Dict[str, Any]: Structured result with parsing metadata
         """
-        import time
         start_time = time.time()
         
         self.parse_stats["total_attempts"] += 1
@@ -136,12 +135,6 @@ class PyParsingNLUParser:
         try:
             # Clean the output
             cleaned_output = self._clean_output(nlu_output)
-            
-            # Quick length check - skip complex parsing for very short inputs
-            if len(cleaned_output.strip()) < 10:
-                logger.warning("Input too short for parsing", length=len(cleaned_output))
-                result["parsing_metadata"]["status"] = ParseStatus.INPUT_TOO_SHORT.value
-                return result
             
             # Parse using pyparsing grammar with timeout protection
             try:

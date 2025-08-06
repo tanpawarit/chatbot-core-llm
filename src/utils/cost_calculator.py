@@ -17,9 +17,13 @@ MODEL_PRICING = {
         "input": 0.15,
         "output": 0.60,
     },
-    "mistralai/mistral-small-3.2-24b-instruct": {
+    "openai/gpt-oss-20b": {
+        "input": 0.05,
+        "output": 0.2,
+    },
+    "openai/gpt-oss-120b": {
         "input": 0.1,
-        "output": 0.3,
+        "output": 0.50,
     },
     # Default fallback pricing
     "default": {

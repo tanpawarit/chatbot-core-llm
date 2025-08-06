@@ -30,9 +30,9 @@ class LLMFactory:
             self._config = config_manager.get_openrouter_config()
         return self._config
     
-    def _create_instance_key(self, model: str, temperature: float) -> str:
+    def _create_instance_key(self, model: str, temperature: float, max_tokens: Optional[int] = None) -> str:
         """Create unique key for LLM instance"""
-        return f"{model}_{temperature}"
+        return f"{model}_{temperature}_{max_tokens}"
     
     def get_classification_llm(self) -> ChatOpenAI:
         """
@@ -44,19 +44,22 @@ class LLMFactory:
         config = self._get_config()
         key = self._create_instance_key(
             config.classification.model, 
-            config.classification.temperature
+            config.classification.temperature,
+            config.classification.max_tokens
         )
         
         if key not in self._instances:
             logger.info("Creating new classification LLM instance", 
                        model=config.classification.model,
-                       temperature=config.classification.temperature)
+                       temperature=config.classification.temperature,
+                       max_tokens=config.classification.max_tokens)
             
             self._instances[key] = ChatOpenAI(
                 model=config.classification.model,
                 api_key=convert_to_secret_str(config.api_key),
                 base_url=config.base_url,
-                temperature=config.classification.temperature, 
+                temperature=config.classification.temperature,
+                max_completion_tokens=config.classification.max_tokens,
                 max_retries=0,         # No retries for faster response
                 http_client=None,      # Use default HTTP client with keep-alive
             )
@@ -73,19 +76,22 @@ class LLMFactory:
         config = self._get_config()
         key = self._create_instance_key(
             config.response.model, 
-            config.response.temperature
+            config.response.temperature,
+            config.response.max_tokens
         )
         
         if key not in self._instances:
             logger.info("Creating new response LLM instance", 
                        model=config.response.model,
-                       temperature=config.response.temperature)
+                       temperature=config.response.temperature,
+                       max_tokens=config.response.max_tokens)
             
             self._instances[key] = ChatOpenAI(
                 model=config.response.model,
                 api_key=convert_to_secret_str(config.api_key),
                 base_url=config.base_url,
-                temperature=config.response.temperature, 
+                temperature=config.response.temperature,
+                max_completion_tokens=config.response.max_tokens,
                 max_retries=0,         # No retries for faster response
                 http_client=None,      # Use default HTTP client with keep-alive
             )

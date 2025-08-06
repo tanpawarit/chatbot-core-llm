@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from datetime import datetime
 
 from langchain_core.messages import BaseMessage
-from src.utils.cost_calculator import format_cost_info
+from src.utils.cost_calculator import format_cost_info, calculate_cost
 from src.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -169,7 +169,6 @@ class TokenTracker:
         # Calculate total cost across all operations
         total_cost_usd = 0.0
         for usage in self.usage_history:
-            from src.utils.cost_calculator import calculate_cost
             cost = calculate_cost(usage.model, usage.input_tokens, usage.output_tokens)
             total_cost_usd += cost
         
@@ -193,7 +192,6 @@ class TokenTracker:
                 op_cost_usd = 0.0
                 for usage in self.usage_history:
                     if usage.operation_type == op_type:
-                        from src.utils.cost_calculator import calculate_cost
                         cost = calculate_cost(usage.model, usage.input_tokens, usage.output_tokens)
                         op_cost_usd += cost
                 

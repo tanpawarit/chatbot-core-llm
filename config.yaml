@@ -7,18 +7,21 @@ openrouter:
   
   # LLM for event classification (JSON output)
   classification:
-    model: "google/gemini-2.5-flash-lite"
+    model: "openai/gpt-oss-20b"
     temperature: 0.1
+    max_tokens: 1000
   
   # LLM for chat response generation (text output)
   response:
     model: "google/gemini-2.5-flash-lite"
     temperature: 0.7
+    max_tokens: 2000
   
 memory:
   # Redis connection loaded from REDIS_URL environment variable
   sm_ttl: 240 # SM TTL in seconds (4 minutes)
   lm_base_path: "data/longterm" # Base path for LM JSON files
+  extend_ttl_on_activity: true # Extend TTL when users send messages to keep active conversations alive
 
 # NLU Configuration for intent/entity detection
 nlu:
@@ -37,7 +40,6 @@ nlu:
   
   # Parser settings
   enable_robust_parsing: true
-  fallback_to_simple_json: true
   importance_threshold: 0.7 # Threshold for saving to long-term memory
   
   # Importance scoring configuration

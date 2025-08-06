@@ -3,8 +3,9 @@ NLU Analysis System - Natural Language Understanding with Robust Parsing
 Replaces the old event classification system with comprehensive NLU analysis.
 """
 
+import time
 from typing import Optional, Dict, Any
-from langchain_core.messages import HumanMessage, SystemMessage, BaseMessage
+from langchain_core.messages import HumanMessage, SystemMessage, BaseMessage, AIMessage
 from langchain_core.prompts import PromptTemplate
 
 from src.config import config_manager
@@ -190,7 +191,6 @@ def analyze_message_nlu(user_message: str, conversation_context: Optional[list] 
             # Convert to HumanMessage for user message
             messages.append(HumanMessage(content=user_message))
         
-        import time
         analysis_start = time.time()
         
         logger.info("Analyzing message with NLU", 
@@ -208,37 +208,17 @@ def analyze_message_nlu(user_message: str, conversation_context: Optional[list] 
             print(content_str)
         print("="*60)
         
-        # Get LLM response with timeout handling
+        # Get LLM response
         try:
-            import signal
-            
-            def timeout_handler(_signum, _frame):
-                raise TimeoutError("LLM request timed out after 30 seconds")
-            
-            # Set up signal handler for timeout
-            signal.signal(signal.SIGALRM, timeout_handler)
-            signal.alarm(30)  # 30 second alarm
-            
-            try:
-                response = llm.invoke(messages)
-                signal.alarm(0)  # Cancel alarm on success
-            except TimeoutError:
-                logger.error("LLM request timed out")
-                print("⏰ LLM request timed out after 30 seconds")
-                return None
-            finally:
-                signal.alarm(0)  # Always cancel alarm
+            response = llm.invoke(messages)
                 
         except Exception as llm_error:
-            logger.error("LLM invoke failed", error=str(llm_error))
-            # Print error for user visibility
-            print(f"❌ LLM API Error: {str(llm_error)}")
+            logger.error("LLM invoke failed", error=str(llm_error)) 
             return None
         
         # Track token usage
         openrouter_config = config_manager.get_openrouter_config()
         # Convert BaseMessage to AIMessage for token tracking
-        from langchain_core.messages import AIMessage
         ai_response = AIMessage(content=response.content) if isinstance(response, BaseMessage) else response
         
         usage = token_tracker.track_response(ai_response, openrouter_config.classification.model, "classification")
