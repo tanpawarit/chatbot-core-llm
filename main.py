@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 from src.models import Message, MessageRole
-from src.llm.processor import event_processor
+from src.llm.processor import llm_processor
 from src.memory.manager import memory_manager
 from src.utils.logging import setup_logging, get_logger
 
@@ -18,7 +18,7 @@ def get_user_id() -> str:
         print("Please enter a valid user ID.")
 
 
-def process_user_input_simple(user_id: str, user_input: str) -> dict:
+def process_user_input(user_id: str, user_input: str) -> dict:
     """
     Simplified workflow replacing LangGraph complexity
     Implements the same flow: A→B→C→D→E→F→G→H→I→J/K→M→N
@@ -33,15 +33,14 @@ def process_user_input_simple(user_id: str, user_input: str) -> dict:
     )
     
     # B→C→D→E→F→G: Memory processing (handled by memory_manager)
-    conversation = memory_manager.process_user_message(user_id, user_message)
-    
-    # H→I→J/K→M: Process through event processor (includes LM context)
-    event, assistant_response = event_processor.process_message(
+    conversation = memory_manager.process_user_message(user_id, user_message) 
+    # H→I→J/K→M: Process through LLM processor (includes LM context)
+    nlu_result, assistant_response = llm_processor.process_message(
         user_id, user_message, conversation.messages
     )
      
-    # Check if important event was saved
-    is_important_event = event is not None and event.importance_score >= 0.7
+    # Check if important NLU analysis was saved
+    is_important_event = nlu_result is not None and nlu_result.importance_score >= 0.7
     
     # N: Save assistant response to SM
     assistant_message = Message(
@@ -57,7 +56,7 @@ def process_user_input_simple(user_id: str, user_input: str) -> dict:
     return {
         "user_message": user_message,
         "conversation": conversation,
-        "event": event,
+        "nlu_result": nlu_result,
         "is_important_event": is_important_event,
         "assistant_response": assistant_response,
         "assistant_message": assistant_message,
@@ -69,8 +68,8 @@ def main():
     """
     Simple chat interface implementing your flow diagram with LLM context printing
     """
-    print("🤖 Chatbot with Dual Memory System (Debug Mode)")
-    print("Type 'quit' to exit, 'new' for new user")
+    print("🤖 Chatbot with Dual Memory System (Refactored Version)")
+    print("Type 'quit' to exit, 'new' for new user, 'stats' for session stats")
     print("-" * 50)
     
     user_id = get_user_id()
@@ -92,11 +91,17 @@ def main():
                 print(f"🆕 New user session started for {user_id}")
                 continue
             
+            if user_input.lower() == 'stats':
+                # Show session statistics
+                print("\n📊 Session Statistics:")
+                llm_processor.print_session_summary()
+                continue
+            
             if not user_input:
                 continue
             
             # Process user input through simplified workflow (A→B→C...→G→H→I→J/K→M→N)
-            final_state = process_user_input_simple(user_id, user_input)
+            final_state = process_user_input(user_id, user_input)
             
             # # Display response
             print(f"\n🤖 Bot: {final_state['assistant_response']}") 

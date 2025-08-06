@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 from typing import Optional, Dict, Any
-from src.models import LongTermMemory, Event, Conversation
+from src.models import LongTermMemory, NLUResult, Conversation
 from src.config import config_manager
 from src.utils.logging import get_logger
 
@@ -33,7 +33,7 @@ class LongTermMemoryStore:
             with open(file_path, 'w', encoding='utf-8') as f:
                 json.dump(lm_data, f, indent=2, ensure_ascii=False, default=str)
             
-            logger.info("LM saved", user_id=lm.user_id, event_count=len(lm.events))
+            logger.info("LM saved", user_id=lm.user_id, analysis_count=len(lm.nlu_analyses))
             return True
             
         except Exception as e:
@@ -52,27 +52,28 @@ class LongTermMemoryStore:
                 data = json.load(f)
             
             lm = LongTermMemory(**data)
-            logger.info("LM loaded", user_id=user_id, event_count=len(lm.events))
+            logger.info("LM loaded", user_id=user_id, analysis_count=len(lm.nlu_analyses))
             return lm
             
         except Exception as e:
             logger.error("Failed to load LM", user_id=user_id, error=str(e))
             return None
     
-    def add_event(self, user_id: str, event: Event) -> bool:
+    def add_nlu_analysis(self, user_id: str, nlu_result: NLUResult) -> bool:
+        """Add NLU analysis result to long-term memory."""
         lm = self.load(user_id)
         if not lm:
             # Create new LM if it doesn't exist
             lm = LongTermMemory(user_id=user_id)
         
-        lm.add_event(event)
+        lm.add_nlu_analysis(nlu_result)
         success = self.save(lm)
         
         if success:
-            logger.info("Event added to LM", 
+            logger.info("NLU analysis added to LM", 
                        user_id=user_id, 
-                       event_type=event.event_type,
-                       importance_score=event.importance_score)
+                       primary_intent=nlu_result.primary_intent,
+                       importance_score=nlu_result.importance_score)
         
         return success
     

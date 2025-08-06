@@ -47,8 +47,8 @@ class RedisClient:
     def get_json(self, key: str) -> Optional[Any]:
         try:
             data = self.client.get(key)
-            if data:
-                return json.loads(data)
+            if data is not None:
+                return json.loads(str(data))
             return None
         except Exception as e:
             logger.error("Failed to get JSON data", key=key, error=str(e))
@@ -78,6 +78,24 @@ class RedisClient:
         except Exception as e:
             logger.error("Failed to get TTL", key=key, error=str(e))
             return -1
+    
+    def expire(self, key: str, ttl: int) -> bool:
+        """
+        Set expiration time for a key
+        
+        Args:
+            key: Redis key
+            ttl: Time to live in seconds
+            
+        Returns:
+            bool: True if TTL was set successfully
+        """
+        try:
+            result = cast(bool, self.client.expire(key, ttl))
+            return bool(result)
+        except Exception as e:
+            logger.error("Failed to set TTL", key=key, ttl=ttl, error=str(e))
+            return False
 
 
 # Global Redis client instance

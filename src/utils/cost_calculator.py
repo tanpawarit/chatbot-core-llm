@@ -1,7 +1,4 @@
-"""Simple cost calculation utilities for LLM usage"""
-
-from typing import Optional, Dict, Any
-
+"""Simple cost calculation utilities for LLM usage""" 
 
 # Approximate pricing for common models (per 1M tokens)
 # These are rough estimates - check current pricing from providers
@@ -20,9 +17,13 @@ MODEL_PRICING = {
         "input": 0.15,
         "output": 0.60,
     },
-    "openai/gpt-4o": {
-        "input": 2.50,
-        "output": 10.00,
+    "openai/gpt-oss-20b": {
+        "input": 0.05,
+        "output": 0.2,
+    },
+    "openai/gpt-oss-120b": {
+        "input": 0.1,
+        "output": 0.50,
     },
     # Default fallback pricing
     "default": {

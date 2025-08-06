@@ -2,26 +2,99 @@
 
 import json
 import os
-from typing import List, Optional, Dict, Any
-from langchain_openai import ChatOpenAI
+from typing import List, Optional, Dict, Any 
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 
 from src.config import config_manager
 from src.models import Message, MessageRole, LongTermMemory
+from src.llm.factory import llm_factory
 from src.utils.logging import get_logger
-from src.utils.cost_calculator import format_cost_info
+from src.utils.token_tracker import token_tracker
 
 logger = get_logger(__name__)
 
 
-RESPONSE_INSTRUCTION_PROMPT = """
-<instructions>
-You are a friendly and knowledgeable computer sales assistant.
-You can provide advice about computer products, hardware components, and system assembly.
-Answer questions about pricing, specifications, and product suitability.
-Respond in polite, friendly.
-</instructions>
+# Personality Prompt - Character and tone definition
+RESPONSE_PERSONALITY_PROMPT = """
+<personality>
+You are เจ้ - a warm, knowledgeable Thai computer store assistant with these traits:
+- Friendly and approachable like a helpful friend, not overly formal
+- Expert in computers and technology but explains things clearly
+- Patient and understanding with customers of all technical levels
+- Honest about what you know and don't know
+- Always puts customer needs first
+</personality>
 """
+
+# Core System Prompt - Primary behavior definition
+RESPONSE_CORE_PROMPT = """
+<core_instructions>
+You are a professional Thai computer store assistant providing helpful customer service.
+- Respond in natural, conversational Thai without question marks (?) or exclamation marks (!)
+- Only provide information based on available data - never hallucinate specifications or pricing
+- Use gentle suggestions instead of direct questions for clarification
+- Maintain warm, professional tone like a knowledgeable friend helping out
+- Be honest about limitations and escalate when appropriate
+</core_instructions>
+"""
+
+# Business Context - Store operations and policies
+RESPONSE_BUSINESS_PROMPT = """
+<business_context>
+Store Operations:
+- Payment methods: Cash, credit card, bank transfer
+- Services: Warranty, returns, delivery available
+- Operating hours: Check current availability
+- Promotions: Inquire about current offers
+
+Product Guidelines: 
+- Verify availability before recommending
+- Suggest alternatives when out of stock
+- Connect with specialists for complex technical questions
+- Format prices with proper currency notation (บาท)
+</business_context>
+"""
+
+# Personalization & Interaction - Customer-focused approach
+RESPONSE_INTERACTION_PROMPT = """
+<interaction_guidelines>
+Personalization Strategy:
+- Adapt formality based on customer interaction history
+- Reference previous purchases or interests when relevant
+- Consider customer's technical knowledge level
+- Tailor recommendations to stated budget and preferences
+
+Conversation Flow:
+- Ask clarifying questions first instead of immediately listing multiple options
+- Gather key information before making recommendations:
+  * Budget or price range
+  * Intended use or purpose
+  * Specific preferences or requirements
+- Wait for sufficient details before suggesting products/services
+- Provide focused recommendations (1-2 options) rather than overwhelming lists
+- Use conversational questions to understand customer needs better
+</interaction_guidelines>
+"""
+
+# Quality Standards - Accuracy and reliability
+RESPONSE_QUALITY_PROMPT = """
+<quality_standards>
+Content Accuracy Requirements:
+- Verify all product information against available data
+- Ensure current pricing and stock availability
+- Double-check specifications and compatibility
+- Provide factual, supportable statements only
+- State clearly when information is not available
+
+Error Handling Protocol:
+- Suggest similar alternatives for out-of-stock items
+- Mention checking current pricing if data may be outdated
+- Escalate complex technical issues appropriately
+- Maintain professional tone even when unable to help fully
+</quality_standards>
+"""
+
+
 
 def _load_product_data() -> Optional[Dict[str, Any]]:
     """
@@ -66,34 +139,29 @@ def _format_product_details(product_data: Optional[Dict[str, Any]]) -> str:
     return "\n".join(formatted_products)
 
 
-def generate_response(conversation_messages: List[Message], lm_context: Optional[LongTermMemory] = None) -> str:
+def generate_response(conversation_messages: List[Message], 
+                     lm_context: Optional[LongTermMemory] = None,
+                     context_selection: Optional[Dict[str, bool]] = None) -> str:
     """
     Generate chat response from conversation messages using LLM
     
     Args:
         conversation_messages: List of conversation messages
         lm_context: Optional long-term memory context for system prompt
+        context_selection: Optional context selection for prompt building
         
     Returns:
         Generated response string
     """
     try:
-        # Get configuration
+        # Get LLM instance from factory
+        llm = llm_factory.get_response_llm()
+        
+        # Get configuration for logging
         config = config_manager.get_openrouter_config()
-        openrouter_config = config_manager.get_openrouter_config()
         
-        # Initialize LLM client
-        from langchain_core.utils import convert_to_secret_str
-        
-        llm = ChatOpenAI(
-            model=config.response.model,
-            api_key=convert_to_secret_str(openrouter_config.api_key),
-            base_url=openrouter_config.base_url,
-            temperature=config.response.temperature,
-        )
-        
-        # Build system prompt with LM context
-        system_prompt = _build_system_prompt(lm_context)
+        # Build system prompt with context selection
+        system_prompt = _build_system_prompt(lm_context, context_selection)
         
         # Convert to LangChain message format
         langchain_messages = []
@@ -111,8 +179,7 @@ def generate_response(conversation_messages: List[Message], lm_context: Optional
                 langchain_messages.append(SystemMessage(content=msg.content))
         
         logger.info("Generating chat response", 
-                   message_count=len(conversation_messages),
-                   model=config.response.model)
+                   message_count=len(conversation_messages))
         
         # Pretty print Response LLM Context
         print("\n" + "="*60)
@@ -124,32 +191,19 @@ def generate_response(conversation_messages: List[Message], lm_context: Optional
         print("="*60)
         
         # Get LLM response
-        response = llm.invoke(langchain_messages)
-        
-        # Track token usage (response is an AIMessage)
-        if isinstance(response, AIMessage) and hasattr(response, 'usage_metadata') and response.usage_metadata:
-            try:
-                print(f"💰 Response LLM Usage:")
-                # UsageMetadata is a TypedDict, use dictionary access
-                usage = response.usage_metadata
-                input_tokens = usage.get('input_tokens', 0)
-                output_tokens = usage.get('output_tokens', 0)
-                total_tokens = usage.get('total_tokens', input_tokens + output_tokens)
+        try:
+            response = llm.invoke(langchain_messages)
                 
-                if input_tokens or output_tokens:
-                    cost_info = format_cost_info(
-                        config.response.model,
-                        input_tokens,
-                        output_tokens,
-                        total_tokens
-                    )
-                    print(cost_info)
-                else:
-                    print("   No token usage data available")
-            except Exception as e:
-                print(f"   Error tracking usage: {e}")
+        except Exception as llm_error:
+            logger.error("Response LLM invoke failed", error=str(llm_error)) 
+            raise Exception(f"เกิดข้อผิดพลาดในการสร้างคำตอบ: {str(llm_error)}")
+        
+        # Track token usage
+        usage = token_tracker.track_response(response, config.response.model, "response")
+        if usage:
+            token_tracker.print_usage(usage, "🤖")
         else:
-            print("💰 Response LLM Usage: No usage metadata available")
+            print("🤖 Response LLM Usage: No usage metadata available")
         
         # Convert response content to string
         response_content = response.content if isinstance(response.content, str) else str(response.content)
@@ -164,43 +218,82 @@ def generate_response(conversation_messages: List[Message], lm_context: Optional
         raise
 
 
-def _build_system_prompt(lm_context: Optional[LongTermMemory] = None) -> str:
+def _build_system_prompt(lm_context: Optional[LongTermMemory] = None, 
+                        context_selection: Optional[Dict[str, bool]] = None) -> str:
     """
-    Build system prompt with tagged format including product details and LM context
+    Build system prompt with selective context based on routing
     
     Args:
         lm_context: Optional long-term memory context
+        context_selection: Dict of context types to include
         
     Returns:
-        System prompt string with structured tags
+        System prompt string with selected contexts
     """
-    # Load product data
-    product_data = _load_product_data()
-    product_details = _format_product_details(product_data)
+    # Default to all contexts if no selection provided (backward compatibility)
+    if context_selection is None:
+        context_selection = {
+            "core_behavior": True,
+            "interaction_guidelines": True,
+            "product_details": True,
+            "business_policies": True,
+            "user_history": True,
+        }
     
-    # Start building the tagged prompt
-    prompt_parts = [RESPONSE_INSTRUCTION_PROMPT]
+    # Build prompt with selected contexts
+    prompt_parts = []
     
-    # Add product details section
-    prompt_parts.append(f"\n<product_details>\nAvailable products:\n{product_details}\n</product_details>")
+    # Always include personality first to establish character
+    if context_selection.get("core_behavior", False):
+        prompt_parts.append(RESPONSE_PERSONALITY_PROMPT)
+        prompt_parts.append(RESPONSE_CORE_PROMPT)
     
-    # Add long-term memory section if available
-    if lm_context and lm_context.events:
-        lm_content_parts = ["Important user history:"]
+    # Business context (policies, payment, services)
+    if context_selection.get("business_policies", False):
+        prompt_parts.append(RESPONSE_BUSINESS_PROMPT)
+    
+    # Interaction guidelines
+    if context_selection.get("interaction_guidelines", False):
+        prompt_parts.append(RESPONSE_INTERACTION_PROMPT)
+    
+    # Quality standards (accuracy, error handling)  
+    if context_selection.get("quality_standards", False):
+        prompt_parts.append(RESPONSE_QUALITY_PROMPT)
+    
+    # Product details (expensive context)
+    if context_selection.get("product_details", False):
+        product_data = _load_product_data()
+        product_details = _format_product_details(product_data)
+        prompt_parts.append(f"\n<product_details>\nAvailable products:\n{product_details}\n</product_details>")
+    
+    # User history (personalization context) - Background reference only
+    if context_selection.get("user_history", False) and lm_context and lm_context.nlu_analyses:
+        lm_content_parts = ["Background user history (reference only):"]
         
-        important_events = lm_context.get_important_events(threshold=0.7)
+        important_analyses = lm_context.get_important_analyses(threshold=0.7)
         
-        for event in important_events:
-            lm_content_parts.append(f"- {event.event_type}: {event.content}")
-            if event.classification.intent:
-                lm_content_parts.append(f"(Intent: {event.classification.intent})")
+        # Limit to most recent 5 analyses
+        recent_important_analyses = important_analyses[-5:] if len(important_analyses) > 5 else important_analyses
+        
+        for analysis in recent_important_analyses:
+            lm_content_parts.append(f"- User said: {analysis.content}")
+            if analysis.primary_intent:
+                lm_content_parts.append(f"  (Intent: {analysis.primary_intent})")
+            if analysis.entities:
+                entity_values = [e.value for e in analysis.entities]
+                lm_content_parts.append(f"  (Mentioned: {', '.join(entity_values)})")
         
         if lm_context.summary:
             lm_content_parts.append(f"\nUser summary: {lm_context.summary}")
         
-        lm_content_parts.append("\nUse the above history to provide appropriate recommendations")
-        
         lm_content = "\n".join(lm_content_parts)
         prompt_parts.append(f"\n<long_term_memory>\n{lm_content}\n</long_term_memory>")
     
+    # Add priority instruction for current session focus
+    prompt_parts.append("""
+    <session_priority>
+    IMPORTANT: Focus primarily on the current conversation flow below. Use the background history above only as general reference when relevant.
+    Priority: Current Session (70%) > Historical Context (30%)
+    </session_priority>""")
+        
     return "\n".join(prompt_parts)

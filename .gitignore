@@ -30,6 +30,7 @@ MANIFEST
 *.manifest
 *.spec
  
+note/
 # Installer logs
 pip-log.txt
 pip-delete-this-directory.txt
@@ -178,7 +179,6 @@ ehthumbs_vista.db
 
 # Project specific
 data/longterm/*.json
-config.yaml
 *.log
 .env
 .env.local
