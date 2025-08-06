@@ -1,8 +1,12 @@
+#!/usr/bin/env python3
+"""
+Main without warmup - สำหรับทดสอบเปรียบเทียบ
+"""
+
 from datetime import datetime, timezone
 from src.models import Message, MessageRole
 from src.llm.processor import llm_processor
 from src.memory.manager import memory_manager
-from src.llm.factory import llm_factory
 from src.utils.logging import setup_logging, get_logger
 
 # Setup logging
@@ -67,21 +71,10 @@ def process_user_input(user_id: str, user_input: str) -> dict:
 
 def main():
     """
-    Simple chat interface implementing your flow diagram with LLM context printing
+    Chat interface WITHOUT warmup - สำหรับทดสอบเปรียบเทียบ
     """
-    print("🤖 Chatbot with Dual Memory System (Refactored Version)")
+    print("🤖 Chatbot WITHOUT Warmup (สำหรับเปรียบเทียบ)")
     print("Type 'quit' to exit, 'new' for new user, 'stats' for session stats")
-    print("-" * 50)
-    
-    # 🔥 LLM Warmup - แก้ปัญหา cold start
-    print("\n🔥 Warming up LLM models to improve first response time...")
-    warmup_success = llm_factory.warmup_all_llms()
-    
-    if warmup_success:
-        print("✅ LLM warmup completed! First responses should be much faster.")
-    else:
-        print("⚠️  LLM warmup had some issues, but continuing anyway...")
-    
     print("-" * 50)
     
     user_id = get_user_id()
