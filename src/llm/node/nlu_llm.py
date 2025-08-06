@@ -10,7 +10,7 @@ from langchain_core.prompts import PromptTemplate
 
 from src.config import config_manager
 from src.models import NLUResult, NLUIntent, NLUEntity, NLULanguage, NLUSentiment
-from src.llm.node.utils import create_pyparsing_nlu_parser_from_config, extract_business_insights
+from src.llm.node.parser import parse_nlu_output, extract_business_insights
 from src.llm.factory import llm_factory
 from src.utils.logging import get_logger
 from src.utils.token_tracker import token_tracker
@@ -237,12 +237,12 @@ def analyze_message_nlu(user_message: str, conversation_context: Optional[list] 
         # Parse NLU response using PyParsingNLUParser
         raw_response = response.content if isinstance(response.content, str) else str(response.content)
         
-        # Use PyParsingNLUParser
-        if nlu_config.enable_robust_parsing:
-            nlu_result = parse_nlu_response_pyparsing(raw_response, nlu_config, user_message)
+        # Use simplified parser
+        parsed_data = parse_nlu_output(raw_response, nlu_config.tuple_delimiter)
+        if parsed_data["success"]:
+            nlu_result = _create_nlu_result_from_parsed_data(parsed_data, user_message)
         else:
-            # Fallback: return None if parsing is disabled
-            logger.warning("Parsing disabled, no fallback available")
+            logger.warning("NLU parsing failed, using fallback")
             nlu_result = None
         
         if nlu_result:
@@ -277,102 +277,72 @@ def analyze_message_nlu(user_message: str, conversation_context: Optional[list] 
         return None
 
 
-def parse_nlu_response_pyparsing(raw_response: str, nlu_config, original_message: str) -> Optional[NLUResult]:
-    """Parse NLU response using simplified NLU parser."""
+def _create_nlu_result_from_parsed_data(parsed_data: Dict[str, Any], original_message: str) -> NLUResult:
+    """Convert simplified parsed data to NLUResult model."""
     try:
-        # Create simple parser from config
-        parser = create_pyparsing_nlu_parser_from_config({
-            "tuple_delimiter": nlu_config.tuple_delimiter,
-            "record_delimiter": nlu_config.record_delimiter,
-            "completion_delimiter": nlu_config.completion_delimiter
-        })
-        
-        # Parse the response
-        parsed_result = parser.parse_intent_output(raw_response)
-        
-        # Convert to NLU models
-        nlu_result = convert_parsed_to_nlu_result(parsed_result, original_message)
-        
-        return nlu_result
-        
-    except Exception as e:
-        logger.error("Simple NLU parsing failed", error=str(e))
-        return None
-
-
-
-def convert_parsed_to_nlu_result(parsed_result: Dict[str, Any], original_message: str) -> NLUResult:
-    """Convert parsed result from PyParsingNLUParser to NLUResult model."""
-    try:
-        # Get configuration for importance scoring
         main_config = config_manager.get_config()
         nlu_config = main_config.nlu
+        
         # Convert intents
         intents = []
-        for intent_data in parsed_result.get("intents", []):
+        for intent_data in parsed_data.get("intents", []):
             intent = NLUIntent(
                 name=intent_data["name"],
                 confidence=intent_data["confidence"],
-                priority_score=intent_data["priority_score"],
-                metadata=intent_data["metadata"]
+                priority_score=0.0,  # Simplified - no priority scoring
+                metadata={}
             )
             intents.append(intent)
         
         # Convert entities
         entities = []
-        for entity_data in parsed_result.get("entities", []):
+        for entity_data in parsed_data.get("entities", []):
             entity = NLUEntity(
                 type=entity_data["type"],
                 value=entity_data["value"],
                 confidence=entity_data["confidence"],
-                metadata=entity_data["metadata"]
+                metadata={}
             )
             entities.append(entity)
         
         # Convert languages
         languages = []
-        for lang_data in parsed_result.get("languages", []):
+        for lang_data in parsed_data.get("languages", []):
             language = NLULanguage(
                 code=lang_data["code"],
                 confidence=lang_data["confidence"],
                 is_primary=lang_data["is_primary"],
-                metadata=lang_data["metadata"]
+                metadata={}
             )
             languages.append(language)
         
         # Convert sentiment
         sentiment = None
-        if parsed_result.get("sentiment"):
-            sentiment_data = parsed_result["sentiment"]
+        if parsed_data.get("sentiment"):
+            sentiment_data = parsed_data["sentiment"]
             sentiment = NLUSentiment(
                 label=sentiment_data["label"],
                 confidence=sentiment_data["confidence"],
-                metadata=sentiment_data["metadata"]
+                metadata={}
             )
         
-        # Create NLUResult with importance scoring config
+        # Create simplified NLUResult
         nlu_result = NLUResult(
             content=original_message,
             intents=intents,
             entities=entities,
             languages=languages,
             sentiment=sentiment,
-            metadata=parsed_result.get("metadata", {}),
-            parsing_metadata=parsed_result.get("parsing_metadata", {}),
+            metadata={},
+            parsing_metadata={"status": "simplified_success"},
             config=nlu_config.importance_scoring
         )
         
         return nlu_result
         
     except Exception as e:
-        logger.error("Failed to convert parsed result to NLUResult", error=str(e))
-        # Return basic NLUResult as fallback - get config for fallback case
-        try:
-            main_config = config_manager.get_config()
-            config = main_config.nlu.importance_scoring
-        except:
-            config = None
-            
+        logger.error("Failed to create NLUResult from parsed data", error=str(e))
+        main_config = config_manager.get_config()
         return NLUResult(
             content=original_message,
             intents=[],
@@ -380,7 +350,7 @@ def convert_parsed_to_nlu_result(parsed_result: Dict[str, Any], original_message
             languages=[],
             sentiment=None,
             parsing_metadata={"error": str(e), "status": "conversion_failed"},
-            config=config
+            config=main_config.nlu.importance_scoring
         )
 
 

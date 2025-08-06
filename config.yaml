@@ -40,17 +40,17 @@ nlu:
   
   # Parser settings
   enable_robust_parsing: true
-  importance_threshold: 0.7 # Threshold for saving to long-term memory
+  importance_threshold: 0.5 # Threshold for saving to long-term memory (lowered from 0.7 for Thai conversational input)
   
   # Importance scoring configuration
   importance_scoring:
-    short_message_threshold: 10  # Messages <= this length get penalty for generic intents
-    generic_intent_penalty: 0.5  # Penalty multiplier for generic intents on short messages
+    short_message_threshold: 15  # Adjusted for Thai language (shorter messages are common)
+    generic_intent_penalty: 0.7  # Reduced penalty for Thai conversational input
     generic_intents: ["purchase_intent", "inquiry_intent"]  # Intents considered generic
     length_penalties:
-      very_short_threshold: 3   # <= 3 chars (e.g., "ใช่", "ได้")
-      very_short_penalty: 0.3   # Heavy penalty
-      short_threshold: 10       # <= 10 chars
-      short_penalty: 0.6        # Moderate penalty  
-      medium_threshold: 20      # <= 20 chars
-      medium_penalty: 0.8       # Light penalty
+      very_short_threshold: 3    # <= 3 chars (e.g., "ใช่", "ได้", "รับ")
+      very_short_penalty: 0.6    # Reduced penalty from 0.3 to 0.6
+      short_threshold: 12        # Increased from 10 to accommodate Thai
+      short_penalty: 0.8         # Reduced penalty from 0.6 to 0.8
+      medium_threshold: 25       # Increased from 20 for Thai messages
+      medium_penalty: 0.9        # Reduced penalty from 0.8 to 0.9
