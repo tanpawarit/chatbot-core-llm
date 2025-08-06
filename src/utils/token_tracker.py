@@ -5,7 +5,7 @@ Centralized token usage tracking and cost calculation
 
 from typing import Optional, Dict, Any
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 
 from langchain_core.messages import BaseMessage
 from src.utils.cost_calculator import format_cost_info, calculate_cost
@@ -48,7 +48,31 @@ class TokenTracker:
             TokenUsage object if successful, None otherwise
         """
         try:
-            if not hasattr(response, 'usage_metadata') or not response.usage_metadata:
+            # Try multiple ways to access usage metadata from different LangChain versions
+            usage = None
+            
+            # Method 1: Check for usage_metadata attribute (safe access)
+            if hasattr(response, 'usage_metadata'):
+                usage_metadata = getattr(response, 'usage_metadata', None)
+                if usage_metadata:
+                    usage = usage_metadata
+            
+            # Method 2: Check for response_metadata with usage info
+            elif hasattr(response, 'response_metadata'):
+                response_metadata = getattr(response, 'response_metadata', None)
+                if response_metadata and isinstance(response_metadata, dict):
+                    if 'token_usage' in response_metadata:
+                        usage = response_metadata['token_usage']
+                    elif 'usage' in response_metadata:
+                        usage = response_metadata['usage']
+            
+            # Method 3: Check for direct usage attribute (older versions, safe access)
+            elif hasattr(response, 'usage'):
+                usage_attr = getattr(response, 'usage', None)
+                if usage_attr:
+                    usage = usage_attr
+            
+            if not usage:
                 # Fallback: estimate tokens from content length for classification
                 if operation_type == "classification":
                     return self._estimate_classification_usage(response, model)
@@ -56,10 +80,16 @@ class TokenTracker:
                 logger.warning("No usage metadata available", model=model, operation_type=operation_type)
                 return None
             
-            usage = response.usage_metadata
-            input_tokens = usage.get('input_tokens', 0)
-            output_tokens = usage.get('output_tokens', 0)
-            total_tokens = usage.get('total_tokens', input_tokens + output_tokens)
+            # Handle different usage data structures
+            if isinstance(usage, dict):
+                input_tokens = usage.get('input_tokens', 0) or usage.get('prompt_tokens', 0)
+                output_tokens = usage.get('output_tokens', 0) or usage.get('completion_tokens', 0)
+                total_tokens = usage.get('total_tokens', input_tokens + output_tokens)
+            else:
+                # Handle usage objects with attributes
+                input_tokens = getattr(usage, 'input_tokens', 0) or getattr(usage, 'prompt_tokens', 0)
+                output_tokens = getattr(usage, 'output_tokens', 0) or getattr(usage, 'completion_tokens', 0)
+                total_tokens = getattr(usage, 'total_tokens', input_tokens + output_tokens)
             
             if not (input_tokens or output_tokens):
                 logger.warning("No token usage data available", model=model, operation_type=operation_type)
@@ -74,7 +104,7 @@ class TokenTracker:
                 output_tokens=output_tokens,
                 total_tokens=total_tokens,
                 model=model,
-                timestamp=datetime.utcnow(),
+                timestamp=datetime.now(timezone.utc),
                 operation_type=operation_type,
                 cost_info=cost_info
             )
@@ -224,7 +254,7 @@ class TokenTracker:
                 output_tokens=estimated_output_tokens,
                 total_tokens=estimated_total_tokens,
                 model=model,
-                timestamp=datetime.utcnow(),
+                timestamp=datetime.now(timezone.utc),
                 operation_type="classification",
                 cost_info=cost_info
             )

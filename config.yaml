@@ -7,7 +7,7 @@ openrouter:
   
   # LLM for event classification (JSON output)
   classification:
-    model: "openai/gpt-oss-20b"
+    model: "google/gemini-2.5-flash-lite"
     temperature: 0.1
     max_tokens: 1000
   

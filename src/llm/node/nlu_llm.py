@@ -20,7 +20,14 @@ logger = get_logger(__name__)
 # NLU Detection Prompt (using the robust format from POC)
 INTENT_DETECTION_PROMPT = """
 -Goal-
-Given a user utterance, detect and extract the user's **intent**, **entities**, **language**, and **sentiment**. You are also provided with pre-declared lists of possible default and additional intents and entities. Only extract intents/entities that appear in either default or additional lists. Assign confidence scores for each item extracted.
+Given a user utterance, detect and extract the user's **intent**, **entities**, **language**, and **sentiment**. You are also provided with pre-declared lists of possible default and additional intents and entities. 
+
+STRICT RULES:
+1. You MUST ONLY extract intents/entities that appear in either default or additional lists
+2. DO NOT create new intents or entities not in the provided lists
+3. If user input doesn't match any intent, use the closest matching intent from the lists
+4. Common greetings (สวัสดี, หวัดดี, hello, hi, good morning) should ALWAYS be classified as "greet"
+5. Only extract entities that are EXPLICITLY mentioned in the current message being analyzed
 
 IMPORTANT: Only extract entities that are EXPLICITLY mentioned in the current message being analyzed. Do NOT use entities from conversation context unless they appear in the current message text.
 
@@ -271,9 +278,9 @@ def analyze_message_nlu(user_message: str, conversation_context: Optional[list] 
 
 
 def parse_nlu_response_pyparsing(raw_response: str, nlu_config, original_message: str) -> Optional[NLUResult]:
-    """Parse NLU response using PyParsingNLUParser."""
+    """Parse NLU response using simplified NLU parser."""
     try:
-        # Create pyparsing parser from config
+        # Create simple parser from config
         parser = create_pyparsing_nlu_parser_from_config({
             "tuple_delimiter": nlu_config.tuple_delimiter,
             "record_delimiter": nlu_config.record_delimiter,
@@ -289,7 +296,7 @@ def parse_nlu_response_pyparsing(raw_response: str, nlu_config, original_message
         return nlu_result
         
     except Exception as e:
-        logger.error("PyParsing NLU parsing failed", error=str(e))
+        logger.error("Simple NLU parsing failed", error=str(e))
         return None
 
 
