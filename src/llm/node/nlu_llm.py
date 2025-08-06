@@ -118,16 +118,17 @@ Output:
 """
 
 
-def analyze_message_nlu(user_message: str, conversation_context: Optional[list] = None) -> Optional[NLUResult]:
+def analyze_message_nlu(user_message: str, conversation_context: Optional[list] = None, media_context: Optional[Any] = None) -> Optional[NLUResult]:
     """
-    Analyze user message using NLU (Natural Language Understanding).
+    Analyze user message using NLU (Natural Language Understanding) with optional media context.
     
     This replaces the old classify_event function with comprehensive NLU analysis
     that extracts intents, entities, languages, and sentiment.
     
     Args:
-        user_message: User's message content
+        user_message: User's message content (text)
         conversation_context: List of recent messages for context (default: None)
+        media_context: MediaContent object if message contains media (default: None)
         
     Returns:
         NLUResult object or None if analysis fails
@@ -156,9 +157,18 @@ def analyze_message_nlu(user_message: str, conversation_context: Optional[list] 
             ]
         )
         
+        # Prepare input text with media context if available
+        analysis_text = user_message
+        if media_context and media_context.has_media:
+            media_desc = f"[User sent {media_context.media_type.value} file]"
+            if user_message:
+                analysis_text = f"{media_desc} {user_message}"
+            else:
+                analysis_text = media_desc
+        
         # Create prompt with NLU config
         formatted_prompt = prompt_template.format(
-            input_text=user_message,
+            input_text=analysis_text,
             default_intent=nlu_config.default_intent,
             additional_intent=nlu_config.additional_intent,
             default_entity=nlu_config.default_entity,

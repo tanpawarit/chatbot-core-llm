@@ -172,11 +172,46 @@ def generate_response(conversation_messages: List[Message],
         
         for msg in conversation_messages:
             if msg.role == MessageRole.USER:
-                langchain_messages.append(HumanMessage(content=msg.content))
+                # Handle multimodal content
+                if hasattr(msg.content, 'text'):  # MediaContent
+                    if msg.content.image_path and msg.content.image_path.exists():
+                        # Create multimodal message with image
+                        import base64
+                        with open(msg.content.image_path, "rb") as image_file:
+                            encoded_image = base64.b64encode(image_file.read()).decode('utf-8')
+                        
+                        content = [
+                            {"type": "text", "text": msg.content.text or "อ่านรูปและช่วยแนะนำสินค้าค่ะ"},
+                            {
+                                "type": "image_url",
+                                "image_url": {
+                                    "url": f"data:image/png;base64,{encoded_image}"
+                                }
+                            }
+                        ]
+                        langchain_messages.append(HumanMessage(content=content))
+                    else:
+                        # Text-only or media file not found
+                        content = msg.content.text or f"[{msg.content.media_type.value} file]"
+                        if msg.content.has_media and not msg.content.image_path:
+                            content = f"[User sent {msg.content.media_type.value} file] {content}".strip()
+                        langchain_messages.append(HumanMessage(content=content))
+                else:  # Legacy string content
+                    content = str(msg.content)
+                    langchain_messages.append(HumanMessage(content=content))
             elif msg.role == MessageRole.ASSISTANT:
-                langchain_messages.append(AIMessage(content=msg.content))
+                # Assistant messages are still text-only
+                if hasattr(msg.content, 'text'):
+                    content = msg.content.text or ""
+                else:
+                    content = str(msg.content)
+                langchain_messages.append(AIMessage(content=content))
             elif msg.role == MessageRole.SYSTEM:
-                langchain_messages.append(SystemMessage(content=msg.content))
+                if hasattr(msg.content, 'text'):
+                    content = msg.content.text or ""
+                else:
+                    content = str(msg.content)
+                langchain_messages.append(SystemMessage(content=content))
         
         logger.info("Generating chat response", 
                    message_count=len(conversation_messages))

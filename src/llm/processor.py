@@ -44,8 +44,14 @@ class LLMProcessor:
             previous_messages = conversation_messages[:-1] if len(conversation_messages) > 1 else []
             context_messages = previous_messages[-5:] if len(previous_messages) > 5 else previous_messages
             
-            # Perform NLU analysis
-            nlu_result = analyze_message_nlu(user_message.content, context_messages)
+            # Perform NLU analysis - handle both text and media content
+            if user_message.content.has_media:
+                # For media messages, analyze the text part and include media context
+                message_text = user_message.content.text or f"[{user_message.content.media_type.value} file]"
+                nlu_result = analyze_message_nlu(message_text, context_messages, media_context=user_message.content)
+            else:
+                # Text-only message
+                nlu_result = analyze_message_nlu(user_message.content.text, context_messages)
             
             if nlu_result:
                 # I: Important Analysis? → J/K: Save or Skip LM Save
