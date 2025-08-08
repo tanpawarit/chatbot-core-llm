@@ -1,0 +1,3 @@
+- multimodal
+- line, fb text card format
+- response llm tool call (product detail, etc.)

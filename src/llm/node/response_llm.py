@@ -154,6 +154,18 @@ def generate_response(conversation_messages: List[Message],
         Generated response string
     """
     try:
+        # Input validation
+        if not isinstance(conversation_messages, list):
+            raise ValueError("conversation_messages must be a list")
+        
+        # Validate Message objects
+        for i, msg in enumerate(conversation_messages):
+            if not isinstance(msg, Message):
+                raise ValueError(f"conversation_messages[{i}] must be a Message object")
+        
+        if not conversation_messages:
+            raise ValueError("conversation_messages cannot be empty")
+        
         # Get LLM instance from factory
         llm = llm_factory.get_response_llm()
         
@@ -230,6 +242,16 @@ def _build_system_prompt(lm_context: Optional[LongTermMemory] = None,
     Returns:
         System prompt string with selected contexts
     """
+    # Input validation
+    if context_selection is not None:
+        if not isinstance(context_selection, dict):
+            raise ValueError("context_selection must be a dictionary")
+        
+        # Validate boolean values
+        for key, value in context_selection.items():
+            if not isinstance(value, bool):
+                raise ValueError(f"context_selection['{key}'] must be a boolean, got {type(value).__name__}")
+    
     # Default to all contexts if no selection provided (backward compatibility)
     if context_selection is None:
         context_selection = {
@@ -238,6 +260,7 @@ def _build_system_prompt(lm_context: Optional[LongTermMemory] = None,
             "product_details": True,
             "business_policies": True,
             "user_history": True,
+            "quality_standards": True,
         }
     
     # Build prompt with selected contexts

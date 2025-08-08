@@ -8,9 +8,9 @@ MODEL_PRICING = {
         "input": 0.1,   # $0.075 per 1M input tokens
         "output": 0.4,   # $0.30 per 1M output tokens
     },
-    "anthropic/claude-3-haiku": {
-        "input": 0.25,
-        "output": 1.25,
+    "openai/gpt-5-nano": {
+        "input": 0.05,
+        "output": 0.4,
     },
     # OpenAI models (approximate)
     "openai/gpt-4o-mini": {
