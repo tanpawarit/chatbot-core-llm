@@ -40,17 +40,28 @@ flowchart TD
 
     SaveSM --> AddMessage
 
-    AddMessage --> ClassifyEvent[/LLM Classification/]
+    AddMessage --> NLUAnalysis[/NLU Analysis/]
 
-    ClassifyEvent --> CheckImportance{Important ≥0.7?}
+    NLUAnalysis --> ContextRoute[Context Routing]
+    NLUAnalysis --> CheckImportance{Important ≥0.7?}
 
     CheckImportance -->|Yes| SaveLM[Save to LM]
     CheckImportance -->|No| SkipLM[Skip LM Save]
 
-    SaveLM --> GenerateResponse[/LLM Response Generation/]
-    SkipLM --> GenerateResponse
+    SaveLM --> ContextRoute
+    SkipLM --> ContextRoute
 
-    GenerateResponse --> AddResponse[Add Response to SM]
+    ContextRoute --> |Optimized Context| ResponseLLM[/LLM Response Generation/]
+    
+    ResponseLLM --> ToolDecision{Need Tools?}
+
+    ToolDecision -->|Yes| ToolCall[Tool Execution]
+    ToolDecision -->|No| DirectResponse[Direct Response]
+
+    ToolCall --> FinalResponse[Final Response]
+    DirectResponse --> FinalResponse
+
+    FinalResponse --> AddResponse[Add Response to SM]
     AddResponse --> Complete([Complete])
 ```
 
@@ -224,3 +235,4 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 - [CLAUDE.md](CLAUDE.md) - Development guidance for Claude Code
 - [Refactoring Summary](note/REFACTORING_SUMMARY.md) - Recent architecture improvements
 - [Configuration Guide](config.yaml) - System configuration reference
+ 
