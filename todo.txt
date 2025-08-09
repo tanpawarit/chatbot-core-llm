@@ -1,7 +1,4 @@
-
-1. response llm tool call Bug!!
-
-2. concurrent and recheck i/o bound
+1. concurrent and recheck i/o bound
  Why AsyncIO is optimal for your chatbot:
   - I/O-Bound Architecture: 90% of processing time is waiting for LLM/Redis responses
   - Memory Efficiency: Single-threaded, no context switching overhead
