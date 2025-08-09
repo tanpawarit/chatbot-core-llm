@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from typing import Dict, List, Optional, Any, Union
+from typing import Dict, List, Optional, Any
 from pydantic import BaseModel, Field
 
 
@@ -30,19 +30,6 @@ class NLUSentiment(BaseModel):
     metadata: Dict[str, Any] = Field(default_factory=dict)
 
 
-class ImportanceScoringConfig(BaseModel):
-    """Configuration for importance scoring in NLU results."""
-    short_message_threshold: int = Field(ge=1, default=10)
-    generic_intent_penalty: float = Field(ge=0.0, le=1.0, default=0.5)
-    generic_intents: List[str] = Field(default_factory=lambda: ["purchase_intent", "inquiry_intent"])
-    length_penalties: Dict[str, Union[int, float]] = Field(default_factory=lambda: {
-        "very_short_threshold": 3,
-        "very_short_penalty": 0.3,
-        "short_threshold": 10,
-        "short_penalty": 0.6,
-        "medium_threshold": 20,
-        "medium_penalty": 0.8
-    })
 
 
 class NLUResult(BaseModel):
@@ -54,80 +41,48 @@ class NLUResult(BaseModel):
     metadata: Dict[str, Any] = Field(default_factory=dict)
     parsing_metadata: Dict[str, Any] = Field(default_factory=dict)
     timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    config: Optional['ImportanceScoringConfig'] = None  # Optional config for importance scoring
     
     @property
     def importance_score(self) -> float:
-        """Calculate importance score from NLU analysis with smart filtering."""
+        """Simplified importance scoring - clear business logic without complex penalties."""
         try:
-            importance = 0.0
-            message_length = len(self.content.strip())
+            # Base score - everyone starts with some importance
+            score = 0.2  # Default baseline
             
-            # Get config or use defaults
-            if self.config:
-                scoring_config = self.config
-            else:
-                # Fallback to default config
-                scoring_config = ImportanceScoringConfig()
-            
-            # Length penalty for very short messages using dynamic config
-            length_penalty = 1.0
-            length_penalties = scoring_config.length_penalties
-            
-            if message_length <= length_penalties.get("very_short_threshold", 3):
-                length_penalty = length_penalties.get("very_short_penalty", 0.3)
-            elif message_length <= length_penalties.get("short_threshold", 10):
-                length_penalty = length_penalties.get("short_penalty", 0.6)
-            elif message_length <= length_penalties.get("medium_threshold", 20):
-                length_penalty = length_penalties.get("medium_penalty", 0.8)
-            
-            # Intent contribution (60% weight)
+            # Primary score from intent confidence (main factor)
             if self.intents:
                 top_intent = max(self.intents, key=lambda x: x.confidence)
-                intent_weight = top_intent.confidence * top_intent.priority_score
-                
-                # Extra penalty for generic intents on short messages using dynamic config
-                if (message_length <= scoring_config.short_message_threshold and 
-                    top_intent.name in scoring_config.generic_intents):
-                    intent_weight *= scoring_config.generic_intent_penalty
-                
-                importance += intent_weight * 0.6
+                score = max(score, top_intent.confidence * 0.7)  # 70% of confidence as base score
             
-            # Entity contribution (25% weight) - with validation
+            # Business keyword boost - clear commercial intent gets priority
+            business_keywords = [
+                "ซื้อ", "เท่าไหร่", "ราคา", "สั่ง", "จอง", "ได้ไหม", "อยาก", 
+                "มีไหม", "แนะนำ", "เอา", "งบ", "บาท"
+            ]
+            keyword_matches = sum(1 for word in business_keywords if word in self.content.lower())
+            if keyword_matches > 0:
+                score += min(keyword_matches * 0.15, 0.3)  # Max 0.3 boost from keywords
+            
+            # Entity boost - but only if entities actually exist in the text
             if self.entities:
-                # Check if entities actually exist in the message text
-                valid_entities = []
-                for entity in self.entities:
-                    # Simple check: if entity value appears in message content
-                    if entity.value.lower() in self.content.lower():
-                        valid_entities.append(entity)
-                
+                valid_entities = [e for e in self.entities if e.value.lower() in self.content.lower()]
                 if valid_entities:
-                    entity_confidence_avg = sum(e.confidence for e in valid_entities) / len(valid_entities)
-                    entity_count_bonus = min(len(valid_entities) * 0.1, 0.3)  # Max 0.3 bonus
-                    importance += (entity_confidence_avg + entity_count_bonus) * 0.25
-                else:
-                    # No valid entities found - likely hallucination, significant penalty
-                    importance *= 0.3
+                    # Each valid entity adds value
+                    score += min(len(valid_entities) * 0.1, 0.2)  # Max 0.2 boost from entities
             
-            # Sentiment contribution (15% weight)
-            if self.sentiment:
-                sentiment_weight = self.sentiment.confidence
-                if self.sentiment.label in ["positive", "negative"]:  # Strong emotions get higher weight
-                    sentiment_weight *= 1.2
-                importance += sentiment_weight * 0.15
+            # Sentiment boost for engaged customers
+            if self.sentiment and self.sentiment.label in ["positive", "negative"]:
+                score += 0.1  # Engaged customers (not neutral) are important
             
-            # Apply length penalty
-            importance *= length_penalty
+            # Length consideration (but not penalty) - very short messages get small boost if they have clear intent
+            message_length = len(self.content.strip())
+            if message_length <= 10 and score >= 0.6:
+                score += 0.1  # Short but meaningful messages get slight boost
             
-            # Business importance boost for specific patterns
-            if any(word in self.content.lower() for word in ["ซื้อ", "เท่าไหร่", "ราคา", "สั่ง", "จอง"]):
-                importance += 0.1  # Boost for commercial terms
-            
-            return max(0.0, min(1.0, importance))
+            return max(0.0, min(1.0, score))
             
         except Exception:
-            return 0.5  # Default fallback
+            return 0.4  # Higher fallback to be safe
     
     @property
     def primary_intent(self) -> Optional[str]:

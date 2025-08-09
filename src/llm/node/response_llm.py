@@ -1,13 +1,12 @@
-"""Simple response generation LLM node"""
+"""Simple response generation LLM node with LangChain tools integration"""
 
-import json
-import os
-from typing import List, Optional, Dict, Any 
-from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
+from typing import List, Optional, Dict
+from langchain_core.messages import HumanMessage, AIMessage, SystemMessage, ToolMessage
 
 from src.config import config_manager
 from src.models import Message, MessageRole, LongTermMemory
 from src.llm.factory import llm_factory
+from src.tools import AVAILABLE_TOOLS
 from src.utils.logging import get_logger
 from src.utils.token_tracker import token_tracker
 
@@ -16,26 +15,60 @@ logger = get_logger(__name__)
 
 # Personality Prompt - Character and tone definition
 RESPONSE_PERSONALITY_PROMPT = """
-<personality>
-You are เจ้ - a warm, knowledgeable Thai computer store assistant with these traits:
-- Friendly and approachable like a helpful friend, not overly formal
-- Expert in computers and technology but explains things clearly
-- Patient and understanding with customers of all technical levels
-- Honest about what you know and don't know
-- Always puts customer needs first
-</personality>
+<role>
+You are a warm, knowledgeable Thai computer store assistant. You speak natural, conversational Thai, friendly and not pushy.
+</role>
+<style>
+- Tone: like a helpful friend who explains clearly and calmly
+- Avoid using ? and !; phrase Thai questions with particles such as ไหม / ได้ไหม / หรือ instead
+- Mirror the customer’s politeness and technical level; if they use ครับ/ค่ะ, mirror it consistently
+- Prefer short, compact sentences that are easy to scan
+</style>
 """
 
 # Core System Prompt - Primary behavior definition
 RESPONSE_CORE_PROMPT = """
 <core_instructions>
 You are a professional Thai computer store assistant providing helpful customer service.
-- Respond in natural, conversational Thai without question marks (?) or exclamation marks (!)
-- Only provide information based on available data - never hallucinate specifications or pricing
-- Use gentle suggestions instead of direct questions for clarification
-- Maintain warm, professional tone like a knowledgeable friend helping out
+- Always respond in Thai, warm and conversational
+- Avoid ? and !; use Thai question particles instead
+- Never hallucinate: models, prices, specs, stock, and promotions must come from tools in this turn
+- Ask at most 1–2 gentle clarifying questions before recommending
 - Be honest about limitations and escalate when appropriate
 </core_instructions>
+"""
+
+# Tools Usage Instructions - Separate constant for tools-related guidance
+RESPONSE_TOOLS_PROMPT = """
+<tools_instructions>
+CRITICAL: When customers ask about specific models, prices/budgets, stock/availability, categories, promotions, or comparisons, you MUST call tools first:
+
+1. Product search → search_items_by_name(), search_items_by_price_range()
+2. Specific product info → get_item_by_id()
+3. Stock checking → check_item_stock()
+4. Categories → get_categories()
+
+Workflow:
+- If the question is about product/price/stock/promotion → call tools FIRST, then respond with the results
+- If the request is general buying advice (e.g., how to choose specs) → you may answer without tools, but do not mention specific models/prices
+- If a tool errors or returns nothing → acknowledge briefly and propose a retry with tighter/wider filters
+
+Do NOT explain tool internals to customers.
+
+<tool_policy>
+IF the user asks about model/price/stock/availability/promo/category → CALL TOOLS first.
+ELSE IF the user wants general buying advice → answer without tools; once criteria are clear, OFFER to search with tools.
+IF tools return 0 results → propose (a) budget ±10–15%, (b) alternate brands, (c) adjust RAM/SSD/display size.
+IF a tool error/timeout occurs → acknowledge, retry once; if still failing, offer to try again with different filters.
+
+IMPORTANT SCENARIOS THAT REQUIRE TOOLS:
+- "มีคอมสำเร็จเลยไหม" + budget → MUST call search_items_by_price_range()  
+- "งบ 40000" + product request → MUST call search_items_by_price_range()
+- Any mention of specific brands/models → MUST call search_items_by_name()
+- "ราคาเท่าไหร่" → MUST call tools to get real prices
+- NEVER provide specific product names, prices, or specs without calling tools first
+</tool_policy>
+</tools_instructions>
 """
 
 # Business Context - Store operations and policies
@@ -44,12 +77,12 @@ RESPONSE_BUSINESS_PROMPT = """
 Store Operations:
 - Payment methods: Cash, credit card, bank transfer
 - Services: Warranty, returns, delivery available
-- Operating hours: Check current availability
-- Promotions: Inquire about current offers
+- Operating hours: Verify current status before confirming
+- Promotions: Mention only if confirmed by tools
 
-Product Guidelines: 
+Product Guidelines:
 - Verify availability before recommending
-- Suggest alternatives when out of stock
+- Suggest close alternatives when out of stock
 - Connect with specialists for complex technical questions
 - Format prices with proper currency notation (บาท)
 </business_context>
@@ -58,86 +91,47 @@ Product Guidelines:
 # Personalization & Interaction - Customer-focused approach
 RESPONSE_INTERACTION_PROMPT = """
 <interaction_guidelines>
-Personalization Strategy:
-- Adapt formality based on customer interaction history
-- Reference previous purchases or interests when relevant
-- Consider customer's technical knowledge level
-- Tailor recommendations to stated budget and preferences
+Personalization:
+- Adapt formality and vocabulary to the customer’s tone and history
+- Reference previous purchases/interests when relevant
+- Consider the customer’s technical knowledge level
+- Tailor recommendations to budget and preferences
 
 Conversation Flow:
-- Ask clarifying questions first instead of immediately listing multiple options
-- Gather key information before making recommendations:
-  * Budget or price range
-  * Intended use or purpose
-  * Specific preferences or requirements
-- Wait for sufficient details before suggesting products/services
-- Provide focused recommendations (1-2 options) rather than overwhelming lists
-- Use conversational questions to understand customer needs better
+- Start by gathering needs with 1–2 gentle questions (not a long questionnaire):
+  * Approximate budget
+  * Primary use cases (study, office work, gaming, editing, etc.)
+  * Preferences/constraints (size/weight, brand, ports, OS)
+- Use tools after you have enough criteria to search
+- Provide focused recommendations (1–2 options) with a short rationale
+- Offer alternatives if items are out of stock or no exact matches
+- Use conversational prompts to keep the dialogue going without pressuring the sale
 </interaction_guidelines>
 """
 
-# Quality Standards - Accuracy and reliability
+# Quality Standards - Accuracy, formatting, and reliability
 RESPONSE_QUALITY_PROMPT = """
 <quality_standards>
-Content Accuracy Requirements:
-- Verify all product information against available data
-- Ensure current pricing and stock availability
-- Double-check specifications and compatibility
+Content Accuracy:
+- Verify all product information against tool results in this turn
+- Ensure current pricing and stock availability before stating them
+- Double-check key specs and compatibility
 - Provide factual, supportable statements only
-- State clearly when information is not available
+- Clearly state when information is not available (e.g., "ยังไม่มีข้อมูลในระบบ")
 
-Error Handling Protocol:
-- Suggest similar alternatives for out-of-stock items
-- Mention checking current pricing if data may be outdated
-- Escalate complex technical issues appropriately
-- Maintain professional tone even when unable to help fully
+Formatting:
+- Price format: 12,990 บาท
+- Compact spec list: CPU / RAM / SSD / Display / Weight OR 3–5 key highlights as short bullets
+- For comparisons, include sections “เหมาะกับใคร” and “ข้อสังเกต”
+- Avoid long URLs or cluttered info dumps
+
+Error Handling:
+- Missing info from user → “ขอทราบงบประมาณคร่าวๆ และการใช้งานหลัก เช่น เรียน ทำงานออฟฟิศ เล่นเกม เพื่อแนะนำได้ตรงขึ้น”
+- Tool failure → “ตอนนี้ระบบค้นหาขัดข้องชั่วคราว ขอฉันลองค้นหาอีกครั้งให้ หรือปรับคำค้นให้แคบ/กว้างขึ้น”
+- No results → “ยังไม่พบรุ่นตามเงื่อนไข ลองช่วงราคาใกล้เคียงหรือยี่ห้ออื่นดีไหม”
+- Maintain a professional, calm tone even when unable to help fully
 </quality_standards>
 """
-
-
-
-def _load_product_data() -> Optional[Dict[str, Any]]:
-    """
-    Load product data from JSON file
-    
-    Returns:
-        Product data dictionary or None if file not found
-    """
-    try:
-        products_path = "data/product_detail/products.json"
-        if os.path.exists(products_path):
-            with open(products_path, 'r', encoding='utf-8') as f:
-                return json.load(f)
-        else:
-            logger.warning("Product data file not found", path=products_path)
-            return None
-    except Exception as e:
-        logger.error("Failed to load product data", error=str(e))
-        return None
-
-
-def _format_product_details(product_data: Optional[Dict[str, Any]]) -> str:
-    """
-    Format product data for system prompt
-    
-    Args:
-        product_data: Product data dictionary
-        
-    Returns:
-        Formatted product details string
-    """
-    if not product_data or 'products' not in product_data:
-        return "No product data available at this time"
-    
-    products = product_data['products']
-    formatted_products = []
-    
-    for product in products:
-        product_info = f"- {product['name']}: {product['price']:,} บาท (คลัง: {product['stock']} ชิ้น)"
-        formatted_products.append(product_info)
-    
-    return "\n".join(formatted_products)
-
 
 def generate_response(conversation_messages: List[Message], 
                      lm_context: Optional[LongTermMemory] = None,
@@ -166,8 +160,9 @@ def generate_response(conversation_messages: List[Message],
         if not conversation_messages:
             raise ValueError("conversation_messages cannot be empty")
         
-        # Get LLM instance from factory
+        # Get LLM instance from factory and bind tools
         llm = llm_factory.get_response_llm()
+        llm_with_tools = llm.bind_tools(AVAILABLE_TOOLS)
         
         # Get configuration for logging
         config = config_manager.get_openrouter_config()
@@ -202,9 +197,43 @@ def generate_response(conversation_messages: List[Message],
             print(f"{i}. [{role}] {msg.content}")
         print("="*60)
         
-        # Get LLM response
+        # Get LLM response with tools - handle tool calling loop
         try:
-            response = llm.invoke(langchain_messages)
+            response = llm_with_tools.invoke(langchain_messages)
+            
+            # Check if response has tool calls that need to be executed  
+            if isinstance(response, AIMessage) and response.tool_calls:
+                print(f"\n🔧 Tools called: {len(response.tool_calls)} tools")
+                
+                # Execute tool calls
+                tool_messages = []
+                for tool_call in response.tool_calls:
+                    print(f"   Executing: {tool_call['name']}({tool_call['args']})")
+                    
+                    # Find and execute the tool
+                    tool_result = None
+                    for tool in AVAILABLE_TOOLS:
+                        if tool.name == tool_call['name']:
+                            try:
+                                tool_result = tool.invoke(tool_call['args'])
+                                print(f"   Result: {len(tool_result) if isinstance(tool_result, list) else 'N/A'} items" if isinstance(tool_result, list) else f"   Result: {str(tool_result)[:100]}...")
+                            except Exception as tool_error:
+                                tool_result = f"Tool error: {str(tool_error)}"
+                                print(f"   Error: {tool_error}")
+                            break
+                    
+                    # Add tool result to messages
+                    tool_messages.append(ToolMessage(
+                        content=str(tool_result),
+                        tool_call_id=tool_call['id']
+                    ))
+                
+                # Get final response with tool results
+                final_messages = langchain_messages + [response] + tool_messages
+                final_response = llm_with_tools.invoke(final_messages)
+                response = final_response
+                
+                print("✅ Tool execution completed, final response generated")
                 
         except Exception as llm_error:
             logger.error("Response LLM invoke failed", error=str(llm_error)) 
@@ -253,11 +282,12 @@ def _build_system_prompt(lm_context: Optional[LongTermMemory] = None,
                 raise ValueError(f"context_selection['{key}'] must be a boolean, got {type(value).__name__}")
     
     # Default to all contexts if no selection provided (backward compatibility)
+    # Note: product_details now defaults to False since we use dynamic tools
     if context_selection is None:
         context_selection = {
             "core_behavior": True,
             "interaction_guidelines": True,
-            "product_details": True,
+            "product_details": False,  # Changed to False - use tools instead
             "business_policies": True,
             "user_history": True,
             "quality_standards": True,
@@ -270,6 +300,7 @@ def _build_system_prompt(lm_context: Optional[LongTermMemory] = None,
     if context_selection.get("core_behavior", False):
         prompt_parts.append(RESPONSE_PERSONALITY_PROMPT)
         prompt_parts.append(RESPONSE_CORE_PROMPT)
+        prompt_parts.append(RESPONSE_TOOLS_PROMPT)
     
     # Business context (policies, payment, services)
     if context_selection.get("business_policies", False):
@@ -283,11 +314,6 @@ def _build_system_prompt(lm_context: Optional[LongTermMemory] = None,
     if context_selection.get("quality_standards", False):
         prompt_parts.append(RESPONSE_QUALITY_PROMPT)
     
-    # Product details (expensive context)
-    if context_selection.get("product_details", False):
-        product_data = _load_product_data()
-        product_details = _format_product_details(product_data)
-        prompt_parts.append(f"\n<product_details>\nAvailable products:\n{product_details}\n</product_details>")
     
     # User history (personalization context) - Background reference only
     if context_selection.get("user_history", False) and lm_context and lm_context.nlu_analyses:

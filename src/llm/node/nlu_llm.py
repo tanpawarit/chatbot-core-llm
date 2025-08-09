@@ -326,7 +326,7 @@ def _create_nlu_result_from_parsed_data(parsed_data: Dict[str, Any], original_me
                 metadata={}
             )
         
-        # Create simplified NLUResult
+        # Create NLUResult
         nlu_result = NLUResult(
             content=original_message,
             intents=intents,
@@ -334,8 +334,7 @@ def _create_nlu_result_from_parsed_data(parsed_data: Dict[str, Any], original_me
             languages=languages,
             sentiment=sentiment,
             metadata={},
-            parsing_metadata={"status": "simplified_success"},
-            config=nlu_config.importance_scoring
+            parsing_metadata={"status": "success"}
         )
         
         return nlu_result
@@ -349,8 +348,7 @@ def _create_nlu_result_from_parsed_data(parsed_data: Dict[str, Any], original_me
             entities=[],
             languages=[],
             sentiment=None,
-            parsing_metadata={"error": str(e), "status": "conversion_failed"},
-            config=main_config.nlu.importance_scoring
+            parsing_metadata={"error": str(e), "status": "conversion_failed"}
         )
 
 

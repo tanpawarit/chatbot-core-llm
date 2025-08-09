@@ -74,7 +74,11 @@ class ContextRouter:
             # Parse "greet:0.3, purchase_intent:0.8" -> {"greet", "purchase_intent"}
             intents = set()
             for item in default_intent_str.split(','):
-                intent_name = item.strip().split(':')[0].strip()
+                parts = item.strip().split(':')
+                if len(parts) != 2:
+                    raise ValueError(f"Invalid intent format: {item}")
+                intent_name, threshold_str = parts[0].strip(), parts[1].strip()
+                float(threshold_str)  # Validate threshold is numeric
                 intents.add(intent_name)
             return intents
         except Exception as e:

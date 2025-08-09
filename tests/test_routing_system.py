@@ -8,7 +8,7 @@ from unittest.mock import Mock, patch
 from typing import Dict, List
 
 from src.llm.routing import ContextRouter, context_router
-from src.models.nlu_model import NLUResult, NLUIntent, NLUEntity, NLUSentiment, ImportanceScoringConfig
+from src.models.nlu_model import NLUResult, NLUIntent, NLUEntity, NLUSentiment
 
 
 class TestContextRouter:
