@@ -5,8 +5,7 @@ from .nlu_model import (
     NLUEntity, 
     NLULanguage, 
     NLUSentiment, 
-    NLUResult,
-    ImportanceScoringConfig
+    NLUResult
 )
 from .conversation_model import Conversation
 from .memory_model import LongTermMemory
@@ -30,7 +29,6 @@ __all__ = [
     'NLULanguage',
     'NLUSentiment',
     'NLUResult',
-    'ImportanceScoringConfig',
     
     # Conversation model
     'Conversation',

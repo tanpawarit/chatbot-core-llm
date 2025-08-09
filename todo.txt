@@ -1,5 +1,5 @@
 
-1. response llm tool call (product detail, etc.)
+1. response llm tool call Bug!!
 
 2. concurrent and recheck i/o bound
  Why AsyncIO is optimal for your chatbot:

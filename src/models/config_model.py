@@ -1,6 +1,5 @@
 from typing import Optional
 from pydantic import BaseModel, Field, field_validator
-from .nlu_model import ImportanceScoringConfig
 
 
 class LLMModelConfig(BaseModel):
@@ -19,7 +18,6 @@ class NLUConfig(BaseModel):
     completion_delimiter: str = "<|COMPLETE|>"
     enable_robust_parsing: bool = True
     importance_threshold: float = Field(ge=0.0, le=1.0, default=0.7)
-    importance_scoring: ImportanceScoringConfig = Field(default_factory=ImportanceScoringConfig)
 
 
 class OpenRouterConfig(BaseModel):

@@ -60,6 +60,13 @@ IF the user asks about model/price/stock/availability/promo/category → CALL TO
 ELSE IF the user wants general buying advice → answer without tools; once criteria are clear, OFFER to search with tools.
 IF tools return 0 results → propose (a) budget ±10–15%, (b) alternate brands, (c) adjust RAM/SSD/display size.
 IF a tool error/timeout occurs → acknowledge, retry once; if still failing, offer to try again with different filters.
+
+IMPORTANT SCENARIOS THAT REQUIRE TOOLS:
+- "มีคอมสำเร็จเลยไหม" + budget → MUST call search_items_by_price_range()  
+- "งบ 40000" + product request → MUST call search_items_by_price_range()
+- Any mention of specific brands/models → MUST call search_items_by_name()
+- "ราคาเท่าไหร่" → MUST call tools to get real prices
+- NEVER provide specific product names, prices, or specs without calling tools first
 </tool_policy>
 </tools_instructions>
 """
