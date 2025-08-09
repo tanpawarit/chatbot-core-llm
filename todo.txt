@@ -1,3 +1,36 @@
-- multimodal
-- line, fb text card format
-- response llm tool call (product detail, etc.)
+
+1. response llm tool call (product detail, etc.)
+
+2. concurrent and recheck i/o bound
+ Why AsyncIO is optimal for your chatbot:
+  - I/O-Bound Architecture: 90% of processing time is waiting for LLM/Redis responses
+  - Memory Efficiency: Single-threaded, no context switching overhead
+  - Easy Migration: Minimal changes to existing code structure
+  - Redis Compatibility: aioredis integrates seamlessly
+
+  Implementation Roadmap
+
+  Phase 1: Core Async Conversion (2-3 hours)
+  1. Convert LLM calls to async (using aiohttp)
+  2. Convert Redis operations to async (aioredis)
+  3. Convert file I/O to async (aiofiles)
+
+  Phase 2: Concurrent Processing (1-2 hours)
+  1. Implement user session isolation
+  2. Add connection pooling for Redis/HTTP
+  3. Parallel NLU + Response generation
+
+  Expected Performance Gains:
+  - Single User: 20-30% faster (no blocking)
+  - Multiple Users: 5-10x throughput increase
+  - Memory Usage: Same or lower (no thread overhead)
+
+  Quick Start Implementation
+
+  Would you like me to implement the AsyncIO conversion for your chatbot? I can start with converting the core components to async/await pattern
+  while maintaining your existing architecture.
+
+
+⏺ Summary: AsyncIO is your best option - it provides significant performance improvements for I/O-bound operations like your LLM calls and Redis
+  operations, with minimal architectural changes required. The implementation maintains your existing dual-memory system while enabling concurrent
+  user processing.
